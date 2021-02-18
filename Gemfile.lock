@@ -1,14 +1,16 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    crypt-isaac (1.2.0)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
+  crypt-isaac (~> 1.2.0)
 
 RUBY VERSION
-   ruby 2.6.3p62
+   ruby 2.6.6p146
 
 BUNDLED WITH
-   1.17.2
+   1.17.3
