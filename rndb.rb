@@ -10,19 +10,89 @@ module RNDB
       @seed = seed
     end
 
-    def seed(table, col, row)
+    def generate(table, row)
+      case table
+      when :ball
+        _generate_ball(row)
+      when :person
+        _generate_person(row)
+      end
+    end
+
+    private
+
+    def _generate_ball(row)
+      {
+        colour: _generate_colour(row),
+        transparent: _generate_transparent(row),
+        weight: _generate_weight(row),
+        material: _generate_material(row)
+      }
+    end
+
+    def _generate_person(row)
+      {
+        sex: _generate_sex(row),
+        age: _generate_age(row),
+        race: _generate_race(row),
+        name: _generate_name(row),
+        spouse: _generate_spouse(row)
+      }
+    end
+
+    def _generate_colour(row)
+      _seed(:ball, :colour, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_transparent(row)
+      _seed(:ball, :transparent, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_weight(row)
+      _seed(:ball, :weight, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_material(row)
+      _seed(:ball, :material, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_sex(row)
+      _seed(:person, :sex, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_age(row)
+      _seed(:person, :sex, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_race(row)
+      _seed(:person, :race, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_name(row)
+      _seed(:person, :name, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _generate_spouse(row)
+      _seed(:person, :spouse, row)
+      Crypt::ISAAC.rand(100)
+    end
+
+    def _seed(table, col, row)
       value = [@seed, table, col, row].join('-')
-      puts value
       digest = Digest::SHA256.hexdigest(value)
-      puts digest
       retval = digest.to_i(16) % 18446744073709551616
       Crypt::ISAAC.srand(retval)
-      retval
+      nil
     end
   end
-
-# Crypt::ISAAC.srand(seed)
-# 10.times { puts Crypt::ISAAC.rand(100) }
 
   class Table
     include Comparable
@@ -48,33 +118,8 @@ module RNDB
   end
 end
 
-class Ball < RNDB::Table
-# property :colour, values: [:red, :green, :blue], indexed: true
-# property :transparent, values: [false, true], indexed: true
-# property :weight
-# property :material
-
-# def partner
-#   offset = Person.index(gender: gender, marital_status: true).find(id)
-#   Person.where(gender: opposite, marital_status: true)[offset]
-# end
-
-# def children
-# end
-end
-
 SEED = 137
 DB = RNDB::Database.new(SEED)
-puts DB.seed(:balls, :colour, 1)
-
-#balls = DB.create_table(:balls, 1_000_000_000)
-#balls.add_col(:colour) do |id, total, prng|
-#end
-#{ red: 0.1, green: 0.4, blue: 0.3, yellow: 0.2 })
-#balls.add_col(:weight, generator)
-#balls.add_col(:name) do |id, total, prng|
-  # use prng to generate the thing
-#end
-
-#puts balls[65536]
-# puts balls.where(:colour => blue).count
+# DB.create_table(:ball, 1_000_000)
+puts DB.generate(:ball, 0)
+puts DB.generate(:person, 0)
