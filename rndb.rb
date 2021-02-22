@@ -3,14 +3,125 @@
 require 'digest'
 require 'crypt/isaac'
 require 'benchmark'
+require 'byebug'
+require 'json'
 
-module RNDB
-  class Database
+COLOUR = {
+  red: 0.3,
+  green: 0.1,
+  brown: 0.01,
+  blue: 0.5,
+  orange: 0.09
+}
+
+TRANSPARENT = {
+  true => 0.1,
+  false => 0.9
+}
+
+WEIGHT = {
+  light: 0.3,
+  medium: 0.6,
+  heavy: 0.1
+}
+
+MATERIAL = {
+  leather: 0.2,
+  steel: 0.4,
+  wood: 0.3,
+  fluff: 0.1
+}
+
+SIZE = 1_000_000
+
+module RN
+  class DB
     def initialize(seed=Time.now.to_i)
       @seed = seed
+
+      raise unless COLOUR.values.sum == 1
+      raise unless TRANSPARENT.values.sum == 1
+      raise unless WEIGHT.values.sum == 1
+      raise unless MATERIAL.values.sum == 1
+
+      @mapping = Hash.new do |mapping, property|
+        mapping[property] = Hash.new do |distribution, value|
+          distribution[value] = {
+            length: 0,
+            ranges: []
+          }
+        end
+      end
+
+      ranges = [(0...SIZE)]
+      ranges.each do |range|
+        start = range.first
+        COLOUR.each do |value, probability|
+          length = (range.count * probability).to_i
+          @mapping[:colour][value][:ranges] << (start...start+length)
+          start += length
+        end
+      end
+      @mapping[:colour].each do |value, distribution|
+        distribution[:length] = distribution[:ranges].map(&:count).sum
+      end
+
+      puts JSON.pretty_generate(@mapping)
+
+      ranges =
+        @mapping[:colour].values.map do |distribution|
+          distribution[:ranges]
+        end.flatten
+      ranges.each do |range|
+        start = range.first
+        TRANSPARENT.each do |value, probability|
+          length = (range.count * probability).to_i
+          @mapping[:transparent][value][:ranges] << (start...start+length)
+          start += length
+        end
+      end
+      @mapping[:transparent].each do |value, distribution|
+        distribution[:length] = distribution[:ranges].map(&:count).sum
+      end
+
+      ranges =
+        @mapping[:transparent].values.map do |distribution|
+          distribution[:ranges]
+        end.flatten
+      ranges.each do |range|
+        start = range.first
+        WEIGHT.each do |value, probability|
+          length = (range.count * probability).to_i
+          @mapping[:weight][value][:ranges] << (start...start+length)
+          start += length
+        end
+      end
+      @mapping[:weight].each do |value, distribution|
+        distribution[:length] = distribution[:ranges].map(&:count).sum
+      end
+      
+      puts JSON.pretty_generate(@mapping)
+      ranges =
+        @mapping[:weight].values.map do |distribution|
+          distribution[:ranges]
+        end.flatten
+      ranges.each do |range|
+        start = range.first
+        MATERIAL.each do |value, probability|
+          length = (range.count * probability).to_i
+          @mapping[:material][value][:ranges] << (start...start+length)
+          start += length
+        end
+      end
+      @mapping[:material].each do |value, distribution|
+        distribution[:length] = distribution[:ranges].map(&:count).sum
+      end
+      
+      puts JSON.pretty_generate(@mapping)
     end
 
     def generate(table, row)
+      raise unless (0...SIZE).include?(row)
       case table
       when :ball
         _generate_ball(row)
@@ -119,7 +230,7 @@ module RNDB
 end
 
 SEED = 137
-DB = RNDB::Database.new(SEED)
-# DB.create_table(:ball, 1_000_000)
+DB = RN::DB.new(SEED)
 puts DB.generate(:ball, 0)
+puts DB.generate(:ball, 1)
 puts DB.generate(:person, 0)
