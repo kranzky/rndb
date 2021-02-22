@@ -34,6 +34,76 @@ DISTRIBUTIONS = {
 SIZE = 1_000_000
 
 module RN
+  class Table
+    # all query methods are available here
+  end
+
+  class Results
+    include Enumerable
+
+    # TODO: include table
+    def initialize(ids)
+      @ids = ids
+    end
+
+    # TODO: override Enumerable#count properly
+    def length
+      case @ids.first
+      when Range
+        @ids.map(&:count).sum
+      else
+        @ids.count
+      end
+    end
+
+    def [](index)
+      _map(index)
+      # find id from index
+      # @table.fetch(id)
+    end
+
+    def each
+      # iterate one at a time
+      # yield self[id]
+    end
+
+    def all
+      self.lazy
+    end
+
+    def pluck(property)
+      # return an array of just that property
+    end
+
+    def filter_by(property)
+      # return Results of matching IDs
+    end
+
+    def sample(count=1)
+      # return Results of matching IDs
+    end
+
+    private
+
+    def _map(index)
+      index += self.length if index < 0
+      case @ids.first
+      when Range
+        @ids.each do |range|
+          count = range.count
+          if index < count
+            return range.min + index
+          else
+            index -= count
+          end
+        end
+        nil
+      else
+        @ids[index]
+      end
+    end
+  end
+
   class DB
     def initialize(seed=Time.now.to_i)
       @seed = seed
@@ -44,17 +114,13 @@ module RN
 
       @mapping = Hash.new do |mapping, property|
         mapping[property] = Hash.new do |distribution, value|
-          distribution[value] = {
-            length: 0,
-            ranges: []
-          }
+          distribution[value] = []
         end
       end
-
+      
       ranges = [(0...SIZE)]
       DISTRIBUTIONS.each do |label, distribution| 
         ranges = _add_mapping(label, distribution, ranges)
-        puts JSON.pretty_generate(@mapping)
       end
     end
 
@@ -68,7 +134,29 @@ module RN
       end
     end
 
+    def query(table, constraints={})
+      ids = [(0...SIZE)]
+      constraints.each do |property, values|
+        values = [values] unless values.is_a?(Array)
+        ranges = values.map { |value| @mapping[property][value] }.flatten
+        ids = _intersect(ids, ranges)
+      end
+      Results.new(ids)
+    end
+
     private
+
+    def _intersect(ranges_1, ranges_2)
+      retval = []
+      ranges_1.each do |range_1|
+        ranges_2.each do |range_2|
+          next if range_1.min > range_2.max
+          next if range_2.min > range_1.max
+          retval << ([range_1.min, range_2.min].max...[range_1.max, range_2.max].min + 1)
+        end
+      end
+      retval
+    end
 
     def _generate_ball(row)
       {
@@ -147,41 +235,17 @@ module RN
         start = range.first
         distribution.each do |value, probability|
           length = (range.count * probability).to_i
-          @mapping[label][value][:ranges] << (start...start+length)
+          @mapping[label][value] << (start...start+length)
           start += length
         end
       end
       ranges.clear
       @mapping[label].each do |value, distribution|
-        ranges << distribution[:ranges]
-        distribution[:length] = distribution[:ranges].map(&:count).sum
+        ranges << distribution
       end
       ranges.flatten
     end
 
-  end
-
-  class Table
-    include Comparable
-
-    def initialize
-      @attributes = {}
-    end
-
-    def <=>(other)
-      self.id <=> other.id
-    end
-
-    def save
-    end
-  end
-
-  class Query
-    include Enumerable
-
-    def each
-      raise
-    end
   end
 end
 
@@ -190,3 +254,9 @@ DB = RN::DB.new(SEED)
 puts DB.generate(:ball, 0)
 puts DB.generate(:ball, 1)
 puts DB.generate(:person, 0)
+query = DB.query(:ball, :colour => [:red, :blue], :material => :wood)
+puts query.length
+puts query[0]
+puts query[query.length-1]
+puts query[query.length+1]
+puts query[-2]
