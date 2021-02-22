@@ -33,12 +33,24 @@ DISTRIBUTIONS = {
 
 SIZE = 1_000_000
 
-module RN
+module RnDB
   class Table
-    # all query methods are available here
+    def initialize
+    end
+
+    def self.column(name, args)
+    end
+
+    def all
+      # TODO: return a query
+    end
+
+    def where(constraints={})
+      # TODO: return a query
+    end
   end
 
-  class Results
+  class Query
     include Enumerable
 
     # TODO: include table
@@ -57,18 +69,18 @@ module RN
     end
 
     def [](index)
-      _map(index)
-      # find id from index
-      # @table.fetch(id)
+      _id(index)
+      # @table.fetch(_id(index))
+    end
+
+    def find(index)
+    end
+
+    def find_by(constraint)
     end
 
     def each
-      # iterate one at a time
-      # yield self[id]
-    end
-
-    def all
-      self.lazy
+      (0...length).each { |index| yield self[index] }
     end
 
     def pluck(property)
@@ -76,16 +88,17 @@ module RN
     end
 
     def filter_by(property)
-      # return Results of matching IDs
+      # return Query of matching IDs
     end
 
     def sample(count=1)
-      # return Results of matching IDs
+      # generate count uniq random indexes and map to IDs
+      # return Query of matching IDs that we can manipulate
     end
 
     private
 
-    def _map(index)
+    def _id(index)
       index += self.length if index < 0
       case @ids.first
       when Range
@@ -104,9 +117,11 @@ module RN
     end
   end
 
-  class DB
+  class Database
     def initialize(seed=Time.now.to_i)
+      @prng = Random
       @seed = seed
+      @tables = Hash.new { |h, k| h[k] = { class: nil, size: 0 } }
 
       DISTRIBUTIONS.each do |label, distribution|
         raise unless distribution.values.sum == 1
@@ -122,6 +137,25 @@ module RN
       DISTRIBUTIONS.each do |label, distribution| 
         ranges = _add_mapping(label, distribution, ranges)
       end
+    end
+
+    def set_prng(prng)
+      @prng = prng
+    end
+
+    def seed_prng(table, col, row)
+      raise "#{table} - no such table" if @tables[table][:class].nil?
+      raise "#{row} - row out of range" if row < 0 || row >= @tables[table][:size]
+      value = [@seed, table, col, row].join('-')
+      digest = Digest::SHA256.hexdigest(value)
+      seed = digest.to_i(16) % 18446744073709551616
+      @prng.srand(seed)
+      nil
+    end
+
+    def add_table(name, klass, size)
+      @tables[name][:class] = klass
+      @tables[name][:size] = size
     end
 
     def generate(table, row)
@@ -141,7 +175,7 @@ module RN
         ranges = values.map { |value| @mapping[property][value] }.flatten
         ids = _intersect(ids, ranges)
       end
-      Results.new(ids)
+      Query.new(ids)
     end
 
     private
@@ -178,56 +212,48 @@ module RN
     end
 
     def _generate_colour(row)
-      _seed(:ball, :colour, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:ball, :colour, row)
+      @prng.rand(100)
     end
 
     def _generate_transparent(row)
-      _seed(:ball, :transparent, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:ball, :transparent, row)
+      @prng.rand(100)
     end
 
     def _generate_weight(row)
-      _seed(:ball, :weight, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:ball, :weight, row)
+      @prng.rand(100)
     end
 
     def _generate_material(row)
-      _seed(:ball, :material, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:ball, :material, row)
+      @prng.rand(100)
     end
 
     def _generate_sex(row)
-      _seed(:person, :sex, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:person, :sex, row)
+      @prng.rand(100)
     end
 
     def _generate_age(row)
-      _seed(:person, :sex, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:person, :sex, row)
+      @prng.rand(100)
     end
 
     def _generate_race(row)
-      _seed(:person, :race, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:person, :race, row)
+      @prng.rand(100)
     end
 
     def _generate_name(row)
-      _seed(:person, :name, row)
-      Crypt::ISAAC.rand(100)
+      seed_prng(:person, :name, row)
+      @prng.rand(100)
     end
 
     def _generate_spouse(row)
-      _seed(:person, :spouse, row)
-      Crypt::ISAAC.rand(100)
-    end
-
-    def _seed(table, col, row)
-      value = [@seed, table, col, row].join('-')
-      digest = Digest::SHA256.hexdigest(value)
-      retval = digest.to_i(16) % 18446744073709551616
-      Crypt::ISAAC.srand(retval)
-      nil
+      seed_prng(:person, :spouse, row)
+      @prng.rand(100)
     end
 
     def _add_mapping(label, distribution, ranges)
@@ -245,18 +271,29 @@ module RN
       end
       ranges.flatten
     end
-
   end
 end
 
+class Ball < RnDB::Table
+  column :colour, { red: 0.3, green: 0.1, brown: 0.01, blue: 0.5, orange: 0.09 }
+  column :transparent, { true => 0.1, false => 0.9 }
+  column :weight_name, { light: 0.3, medium: 0.6, heavy: 0.1 }
+  column :material, { leather: 0.2, steel: 0.4, wood: 0.3, fluff: 0.1 }
+  column :weight, -> id, prng { 42 }
+end
+
 SEED = 137
-DB = RN::DB.new(SEED)
+DB = RnDB::Database.new(SEED)
+DB.set_prng(Crypt::ISAAC)
+DB.add_table(:ball, Ball, 1_000_000)
+
+#puts Ball.count
+#puts Ball.find(13)
+#puts Ball.find_by(weight: 42)
+#puts Ball.query(:colour => [:red, :blue], :material => :wood).sample(30).pluck(:weight_name)
+
 puts DB.generate(:ball, 0)
 puts DB.generate(:ball, 1)
-puts DB.generate(:person, 0)
 query = DB.query(:ball, :colour => [:red, :blue], :material => :wood)
 puts query.length
-puts query[0]
-puts query[query.length-1]
-puts query[query.length+1]
-puts query[-2]
+puts query.lazy.take(3).to_a
