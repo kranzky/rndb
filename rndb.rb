@@ -5,6 +5,7 @@ require 'crypt/isaac'
 require 'benchmark'
 require 'byebug'
 require 'json'
+require 'faker'
 
 DISTRIBUTIONS = {
   colour: {
@@ -34,22 +35,6 @@ DISTRIBUTIONS = {
 SIZE = 1_000_000
 
 module RnDB
-  class Table
-    def initialize
-    end
-
-    def self.column(name, args)
-    end
-
-    def all
-      # TODO: return a query
-    end
-
-    def where(constraints={})
-      # TODO: return a query
-    end
-  end
-
   class Query
     include Enumerable
 
@@ -143,14 +128,20 @@ module RnDB
       @prng = prng
     end
 
-    def seed_prng(table, col, row)
+    def get_seed(table, col, row)
       raise "#{table} - no such table" if @tables[table][:class].nil?
       raise "#{row} - row out of range" if row < 0 || row >= @tables[table][:size]
       value = [@seed, table, col, row].join('-')
       digest = Digest::SHA256.hexdigest(value)
-      seed = digest.to_i(16) % 18446744073709551616
-      @prng.srand(seed)
-      nil
+      digest.to_i(16) % 18446744073709551616
+    end
+
+    def seed_prng(table, col, row)
+      @prng.srand(get_seed(table, col, row))
+    end
+
+    def seed_faker
+      Faker::Config.random = @prng
     end
 
     def add_table(name, klass, size)
@@ -194,6 +185,7 @@ module RnDB
 
     def _generate_ball(row)
       {
+        name: _generate_ballname(row),
         colour: _generate_colour(row),
         transparent: _generate_transparent(row),
         weight: _generate_weight(row),
@@ -246,9 +238,16 @@ module RnDB
       @prng.rand(100)
     end
 
+    def _generate_ballname(row)
+      seed_prng(:ball, :name, row)
+      seed_faker
+      Faker::Name.name
+    end
+
     def _generate_name(row)
       seed_prng(:person, :name, row)
-      @prng.rand(100)
+      seed_faker
+      Faker::Name.name
     end
 
     def _generate_spouse(row)
@@ -272,6 +271,23 @@ module RnDB
       ranges.flatten
     end
   end
+
+  class Table
+    def initialize
+    end
+
+    def self.column(name, args)
+      # TODO: store mapping in thread
+    end
+
+    def all
+      # TODO: return a query
+    end
+
+    def where(constraints={})
+      # TODO: return a query
+    end
+  end
 end
 
 class Ball < RnDB::Table
@@ -279,17 +295,22 @@ class Ball < RnDB::Table
   column :transparent, { true => 0.1, false => 0.9 }
   column :weight_name, { light: 0.3, medium: 0.6, heavy: 0.1 }
   column :material, { leather: 0.2, steel: 0.4, wood: 0.3, fluff: 0.1 }
-  column :weight, -> id, prng { 42 }
+  column :weight, -> id do
+    42
+  end
+  column :name, -> id do
+    "Fred Smith"
+  end
 end
 
-SEED = 137
-DB = RnDB::Database.new(SEED)
+DB = RnDB::Database.new(137)
 DB.set_prng(Crypt::ISAAC)
 DB.add_table(:ball, Ball, 1_000_000)
 
 #puts Ball.count
 #puts Ball.find(13)
 #puts Ball.find_by(weight: 42)
+#puts Ball.filter_by(:name) { |name| name =~ /John/ }.take(3).to_a
 #puts Ball.query(:colour => [:red, :blue], :material => :wood).sample(30).pluck(:weight_name)
 
 puts DB.generate(:ball, 0)
