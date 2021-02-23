@@ -1,0 +1,80 @@
+#!/usr/bin/env ruby
+
+require 'byebug'
+require 'crypt/isaac'
+require 'json'
+require 'faker'
+
+require_relative '../lib/rndb/database'
+require_relative '../lib/rndb/table'
+require_relative '../lib/rndb/query'
+
+class Ball < RnDB::Table
+  column :colour, {
+    red: 0.3,
+    green: 0.1,
+    brown: 0.01,
+    blue: 0.5,
+    orange: 0.09
+  }
+  column :transparent, {
+    true => 0.1,
+    false => 0.9
+  }
+  column :weight, {
+    light: 0.3,
+    medium: 0.6,
+    heavy: 0.1
+  }, -> id, value do
+    range =
+      case value
+      when :light
+        (0.1..3.0)
+      when :medium
+        (3.0..6.0)
+      when :heavy
+        (6.0..9.9)
+      end
+    self.rand(range)
+  end
+  column :material, {
+    leather: 0.2,
+    steel: 0.4,
+    wood: 0.3,
+    fluff: 0.1
+  }
+  column :name, -> id do
+    Faker::Games::Pokemon.name
+  end
+  column :location, -> id do
+    Faker::Games::Pokemon.location
+  end
+  column :move, -> id do
+    Faker::Games::Pokemon.move
+  end
+end
+
+DB = RnDB::Database.new(137)
+DB.prng = Crypt::ISAAC
+DB.add_table(Ball, 1_000_000)
+
+query = Ball.where(:colour => [:red, :blue], :material => :wood)
+puts "Count: #{query.count}"
+puts "First: #{query.first}"
+puts "Last: #{query.last}"
+puts "Find: #{query.find { |ball| !ball.transparent }}"
+puts "Sample..."
+puts query.sample(3).pluck(:id, :name, :weight, :move)
+puts "Filter..."
+puts query.lazy.filter { |ball| ball.move =~ /fire/i }.take(3).to_a
+
+puts "---"
+
+puts "Count: #{Ball.count}"
+puts "First: #{Ball.first}"
+puts "Last: #{Ball.last}"
+puts "Find: #{Ball.find { |ball| ball.location =~ /island/i }}"
+puts "Sample..."
+puts Ball.sample(3).pluck(:id, :name, :weight, :move)
+puts "Filter..."
+puts Ball.lazy.filter { |ball| ball.name =~ /slow/i }.take(3).to_a
