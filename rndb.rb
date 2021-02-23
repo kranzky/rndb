@@ -7,8 +7,9 @@ require 'byebug'
 require 'json'
 require 'faker'
 
-# TODO: add queries
+# TODO: generate getters
 # TODO: implement find_by, filter_by, where, pluck, sample
+# TODO: these return a query object with count, index, [], pluck, sample, etc
 # TODO: implement people with relationships
 # TODO: implement state
 
@@ -121,6 +122,8 @@ module RnDB
   end
 
   class Table
+    attr_reader :id
+
     def initialize(id)
       @id = id
     end
@@ -135,10 +138,6 @@ module RnDB
 
     def to_s
       to_h.to_s
-    end
-
-    def name
-      _generate_column(:name)
     end
 
     def self.table_name
@@ -157,10 +156,6 @@ module RnDB
 
     def self.find(id)
       self[id]
-    end
-
-    def self.rand(args)
-      _db.prng.rand(args)
     end
 
     def self.value(id, property)
@@ -198,6 +193,13 @@ module RnDB
           end
         _schema[:columns][property][index] = arg
       end
+      define_method(property) do
+        _generate_column(property)
+      end
+    end
+
+    def self.rand(args)
+      _db.prng.rand(args)
     end
 
     private
@@ -312,7 +314,13 @@ class Ball < RnDB::Table
     fluff: 0.1
   }
   column :name, -> id do
-    Faker::Name.name
+    Faker::Games::Pokemon.name
+  end
+  column :location, -> id do
+    Faker::Games::Pokemon.location
+  end
+  column :move, -> id do
+    Faker::Games::Pokemon.move
   end
 end
 
@@ -323,7 +331,6 @@ DB.add_table(Ball, 1_000_000)
 
 puts Ball.count
 ball = Ball.find(13)
-puts ball.name
 puts ball
 
 #puts Ball.find_by(weight: 42)
