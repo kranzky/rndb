@@ -7,32 +7,6 @@ require 'byebug'
 require 'json'
 require 'faker'
 
-DISTRIBUTIONS = {
-  colour: {
-    red: 0.3,
-    green: 0.1,
-    brown: 0.01,
-    blue: 0.5,
-    orange: 0.09
-  },
-  transparent: {
-    true => 0.1,
-    false => 0.9
-  },
-  weight: {
-    light: 0.3,
-    medium: 0.6,
-    heavy: 0.1
-  },
-  material: {
-    leather: 0.2,
-    steel: 0.4,
-    wood: 0.3,
-    fluff: 0.1
-  }
-}
-SIZE = 1_000_000
-
 module RnDB
   class Query
     include Enumerable
@@ -108,21 +82,6 @@ module RnDB
       @seed = seed
       @tables = Hash.new { |h, k| h[k] = { class: nil, size: 0 } }
       Thread.current[:rndb_database] = self
-
-      DISTRIBUTIONS.each do |label, distribution|
-        raise unless distribution.values.sum == 1
-      end
-
-      @mapping = Hash.new do |mapping, property|
-        mapping[property] = Hash.new do |distribution, value|
-          distribution[value] = []
-        end
-      end
-      
-      ranges = [(0...SIZE)]
-      DISTRIBUTIONS.each do |label, distribution| 
-        ranges = _add_mapping(label, distribution, ranges)
-      end
     end
 
     def set_prng(prng)
@@ -254,22 +213,6 @@ module RnDB
       seed_prng(:person, :spouse, row)
       @prng.rand(100)
     end
-
-    def _add_mapping(label, distribution, ranges)
-      ranges.each do |range|
-        start = range.first
-        distribution.each do |value, probability|
-          length = (range.count * probability).to_i
-          @mapping[label][value] << (start...start+length)
-          start += length
-        end
-      end
-      ranges.clear
-      @mapping[label].each do |value, distribution|
-        ranges << distribution
-      end
-      ranges.flatten
-    end
   end
 
   class Table
@@ -309,6 +252,9 @@ module RnDB
           columns: Hash.new do |columns, key|
             columns[key] = {
               distribution: nil,
+              mapping: Hash.new do |distribution, value|
+                distribution[value] = []
+              end,
               generator: nil
             }
           end,
@@ -318,9 +264,16 @@ module RnDB
     end
 
     def self.migrate(size)
-      raise "table already added" unless schema[:class].nil?
-      schema[:class] = self
+      raise "table already migrated" unless schema[:class].nil?
+      ranges = [(0...size)]
+      schema[:columns].each do |property, column|
+        distribution = column[:distribution]
+        next if distribution.nil?
+        raise unless distribution.values.sum == 1
+        ranges = self._add_mapping(column, ranges)
+      end
       schema[:size] = size
+      schema[:class] = self
     end
 
     # TODO: add generator for each property with accessor that caches results in
@@ -342,10 +295,53 @@ module RnDB
 
     private
 
+    def self._add_mapping(column, ranges)
+      ranges.each do |range|
+        start = range.first
+        column[:distribution].each do |value, probability|
+          length = (range.count * probability).to_i
+          column[:mapping][value] << (start...start+length)
+          start += length
+        end
+      end
+      ranges.clear
+      column[:mapping].each do |value, distribution|
+        ranges << distribution
+      end
+      ranges.flatten
+    end
+
+    # TODO: generate all the things
     def _generate_all
-      @_attributes = {
-        id: @id
-      }
+      @_attributes ||= {}
+      @_attributes[:id] ||= @id
+      self.class.schema[:columns].keys.each do |name|
+        _generate_column(name)
+      end
+      @_attributes
+    end
+
+    def _generate_column(name)
+      @_attributes ||= {}
+      @_attributes[name] ||=
+        begin
+          column = self.class.schema[:columns][name]
+          value =
+            unless column[:mapping].nil?
+              column[:mapping].find do |value, ranges|
+                ranges.any? { |range| range.include?(@id) }
+              end&.first
+            end
+          unless column[:generator].nil?
+            # TODO: seed right here
+            if value.nil?
+              value = column[:generator].call(@id)
+            else
+              value = column[:generator].call(@id, value)
+            end
+          end
+          value
+        end
     end
   end
 end
@@ -383,8 +379,7 @@ end
 DB = RnDB::Database.new(137)
 DB.set_prng(Crypt::ISAAC)
 DB.add_table(Ball, 1_000_000)
-
-puts JSON.pretty_generate(Thread.current[:rndb_tables])
+# puts JSON.pretty_generate(Thread.current[:rndb_tables])
 
 puts Ball.count
 ball = Ball.find(13)
