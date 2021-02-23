@@ -7,6 +7,11 @@ require 'byebug'
 require 'json'
 require 'faker'
 
+# TODO: add queries
+# TODO: implement find_by, filter_by, where, pluck, sample
+# TODO: implement people with relationships
+# TODO: implement state
+
 module RnDB
   class Query
     include Enumerable
@@ -76,46 +81,18 @@ module RnDB
   end
 
   class Database
+    attr_accessor :prng
+    attr_reader :seed
+
     def initialize(seed=Time.now.to_i)
       raise "database already open" unless Thread.current[:rndb_database].nil?
+      Thread.current[:rndb_database] = self
       @prng = Random
       @seed = seed
-      @tables = Hash.new { |h, k| h[k] = { class: nil, size: 0 } }
-      Thread.current[:rndb_database] = self
-    end
-
-    def set_prng(prng)
-      @prng = prng
-    end
-
-    def get_seed(name, col, row)
-      raise "#{table} - no such table" if Thread.current[:rndb_tables][name][:class].nil?
-      raise "#{row} - row out of range" if row < 0 || row >= Thread.current[:rndb_tables][name][:size]
-      value = [@seed, name, col, row].join('-')
-      digest = Digest::SHA256.hexdigest(value)
-      digest.to_i(16) % 18446744073709551616
-    end
-
-    def seed_prng(table, col, row)
-      @prng.srand(get_seed(table, col, row))
-    end
-
-    def seed_faker
-      Faker::Config.random = @prng
     end
 
     def add_table(klass, size)
-      klass.migrate(size)
-    end
-
-    def generate(table, row)
-      raise unless (0...SIZE).include?(row)
-      case table
-      when :ball
-        _generate_ball(row)
-      when :person
-        _generate_person(row)
-      end
+      klass._migrate(size)
     end
 
     def query(table, constraints={})
@@ -141,78 +118,6 @@ module RnDB
       end
       retval
     end
-
-    def _generate_ball(row)
-      {
-        name: _generate_ballname(row),
-        colour: _generate_colour(row),
-        transparent: _generate_transparent(row),
-        weight: _generate_weight(row),
-        material: _generate_material(row)
-      }
-    end
-
-    def _generate_person(row)
-      {
-        sex: _generate_sex(row),
-        age: _generate_age(row),
-        race: _generate_race(row),
-        name: _generate_name(row),
-        spouse: _generate_spouse(row)
-      }
-    end
-
-    def _generate_colour(row)
-      seed_prng(:ball, :colour, row)
-      @prng.rand(100)
-    end
-
-    def _generate_transparent(row)
-      seed_prng(:ball, :transparent, row)
-      @prng.rand(100)
-    end
-
-    def _generate_weight(row)
-      seed_prng(:ball, :weight, row)
-      @prng.rand(100)
-    end
-
-    def _generate_material(row)
-      seed_prng(:ball, :material, row)
-      @prng.rand(100)
-    end
-
-    def _generate_sex(row)
-      seed_prng(:person, :sex, row)
-      @prng.rand(100)
-    end
-
-    def _generate_age(row)
-      seed_prng(:person, :sex, row)
-      @prng.rand(100)
-    end
-
-    def _generate_race(row)
-      seed_prng(:person, :race, row)
-      @prng.rand(100)
-    end
-
-    def _generate_ballname(row)
-      seed_prng(:ball, :name, row)
-      seed_faker
-      Faker::Name.name
-    end
-
-    def _generate_name(row)
-      seed_prng(:person, :name, row)
-      seed_faker
-      Faker::Name.name
-    end
-
-    def _generate_spouse(row)
-      seed_prng(:person, :spouse, row)
-      @prng.rand(100)
-    end
   end
 
   class Table
@@ -232,19 +137,89 @@ module RnDB
       to_h.to_s
     end
 
+    def name
+      _generate_column(:name)
+    end
+
     def self.table_name
-      self.name.downcase.to_sym
+      name.downcase.to_sym
     end
 
     def self.count
-      schema[:size]
+      _schema[:size]
+    end
+
+    def self.[](id)
+      id += count while id < 0
+      return nil if id >= count
+      new(id)
     end
 
     def self.find(id)
-      self.new(id)
+      self[id]
     end
 
-    def self.schema
+    def self.rand(args)
+      _db.prng.rand(args)
+    end
+
+    def self.value(id, property)
+      puts "(gen #{property}@#{id})"
+      column = _schema[:columns][property]
+      value =
+        unless column[:mapping].nil?
+          column[:mapping].find do |value, ranges|
+            ranges.any? { |range| range.include?(id) }
+          end&.first
+        end
+      unless column[:generator].nil?
+        self._seed_prng(id, property)
+        if value.nil?
+          value = column[:generator].call(@id)
+        else
+          value = column[:generator].call(@id, value)
+        end
+      end
+      value
+    end
+
+    # TODO: add generator for each property with accessor that caches results in
+    #       attributes, and add attributes method that generates everything
+    def self.column(property, *args)
+      args.each do |arg|
+        index =
+          case arg
+          when Hash
+            :distribution
+          when Proc
+            :generator
+          else
+            raise "bad argument"
+          end
+        _schema[:columns][property][index] = arg
+      end
+    end
+
+    private
+
+    def self._db
+      Thread.current[:rndb_database]
+    end
+
+    def self._migrate(size)
+      raise "table already migrated" unless _schema[:class].nil?
+      ranges = [(0...size)]
+      _schema[:columns].each do |property, column|
+        distribution = column[:distribution]
+        next if distribution.nil?
+        raise unless distribution.values.sum == 1
+        ranges = _add_mapping(column, ranges)
+      end
+      _schema[:size] = size
+      _schema[:class] = self
+    end
+
+    def self._schema
       Thread.current[:rndb_tables] ||= Hash.new do |tables, name|
         tables[name] = {
           class: nil,
@@ -263,38 +238,6 @@ module RnDB
       Thread.current[:rndb_tables][table_name]
     end
 
-    def self.migrate(size)
-      raise "table already migrated" unless schema[:class].nil?
-      ranges = [(0...size)]
-      schema[:columns].each do |property, column|
-        distribution = column[:distribution]
-        next if distribution.nil?
-        raise unless distribution.values.sum == 1
-        ranges = self._add_mapping(column, ranges)
-      end
-      schema[:size] = size
-      schema[:class] = self
-    end
-
-    # TODO: add generator for each property with accessor that caches results in
-    #       attributes, and add attributes method that generates everything
-    def self.column(property, *args)
-      args.each do |arg|
-        index =
-          case arg
-          when Hash
-            :distribution
-          when Proc
-            :generator
-          else
-            raise "bad argument"
-          end
-        schema[:columns][property][index] = arg
-      end
-    end
-
-    private
-
     def self._add_mapping(column, ranges)
       ranges.each do |range|
         start = range.first
@@ -311,37 +254,25 @@ module RnDB
       ranges.flatten
     end
 
-    # TODO: generate all the things
+    def self._seed_prng(id, property)
+      tuple = [_db.seed, table_name, property, id].join('-')
+      digest = Digest::SHA256.hexdigest(tuple)
+      value = digest.to_i(16) % 18446744073709551616
+      _db.prng.srand(value)
+      Faker::Config.random = _db.prng
+      value
+    end
+
     def _generate_all
-      @_attributes ||= {}
-      @_attributes[:id] ||= @id
-      self.class.schema[:columns].keys.each do |name|
+      self.class._schema[:columns].keys.each do |name|
         _generate_column(name)
       end
       @_attributes
     end
 
     def _generate_column(name)
-      @_attributes ||= {}
-      @_attributes[name] ||=
-        begin
-          column = self.class.schema[:columns][name]
-          value =
-            unless column[:mapping].nil?
-              column[:mapping].find do |value, ranges|
-                ranges.any? { |range| range.include?(@id) }
-              end&.first
-            end
-          unless column[:generator].nil?
-            # TODO: seed right here
-            if value.nil?
-              value = column[:generator].call(@id)
-            else
-              value = column[:generator].call(@id, value)
-            end
-          end
-          value
-        end
+      @_attributes ||= { id: @id }
+      @_attributes[name] ||= self.class.value(@id, name)
     end
   end
 end
@@ -363,7 +294,16 @@ class Ball < RnDB::Table
     medium: 0.6,
     heavy: 0.1
   }, -> id, value do
-    42
+    range =
+      case value
+      when :light
+        (0.1..3.0)
+      when :medium
+        (3.0..6.0)
+      when :heavy
+        (6.0..9.9)
+      end
+    self.rand(range)
   end
   column :material, {
     leather: 0.2,
@@ -372,17 +312,18 @@ class Ball < RnDB::Table
     fluff: 0.1
   }
   column :name, -> id do
-    "Fred Smith"
+    Faker::Name.name
   end
 end
 
 DB = RnDB::Database.new(137)
-DB.set_prng(Crypt::ISAAC)
+# DB.prng = Crypt::ISAAC
 DB.add_table(Ball, 1_000_000)
 # puts JSON.pretty_generate(Thread.current[:rndb_tables])
 
 puts Ball.count
 ball = Ball.find(13)
+puts ball.name
 puts ball
 
 #puts Ball.find_by(weight: 42)
