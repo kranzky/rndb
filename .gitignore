@@ -1,1 +1,14 @@
 .byebug_history
+*.swp
+.ruby-version
+.ruby-gemset
+tmp
+coverage
+coverage.data
+rdoc
+doc
+.yardoc
+.bundle
+pkg
+.DS_Store
+vendor
