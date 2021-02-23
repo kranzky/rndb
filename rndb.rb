@@ -7,23 +7,15 @@ require 'byebug'
 require 'json'
 require 'faker'
 
-# TODO: generate getters
-# TODO: implement find_by, filter_by, where, pluck, sample
-# TODO: these return a query object with count, index, [], pluck, sample, etc
-# TODO: implement people with relationships
-# TODO: implement state
-
 module RnDB
   class Query
     include Enumerable
 
-    # TODO: include table
-    def initialize(ids)
-      @ids = ids
+    def initialize(table, ids)
+      @table, @ids = table, ids
     end
 
-    # TODO: override Enumerable#count properly
-    def length
+    def count
       case @ids.first
       when Range
         @ids.map(&:count).sum
@@ -33,37 +25,47 @@ module RnDB
     end
 
     def [](index)
-      _id(index)
-      # @table.fetch(_id(index))
+      @table[_id(index)]
     end
 
-    def find(index)
-    end
-
-    def find_by(constraint)
+    def last
+      self[-1]
     end
 
     def each
-      (0...length).each { |index| yield self[index] }
+      (0...count).each { |index| yield self[index] }
     end
 
-    def pluck(property)
-      # return an array of just that property
+    def pluck(*args)
+      (0...count).map do |index|
+        if args.count == 1
+          @table.value(_id(index), args.first)
+        else
+          Hash[args.map do |property|
+            [property, @table.value(_id(index), property)]
+          end]
+        end
+      end
     end
 
-    def filter_by(property)
-      # return Query of matching IDs
-    end
-
-    def sample(count=1)
-      # generate count uniq random indexes and map to IDs
-      # return Query of matching IDs that we can manipulate
+    def sample(limit=1)
+      _db.prng.srand
+      ids = Set.new
+      while ids.count < limit
+        index = _db.prng.rand(count)
+        ids << _id(index)
+      end
+      self.class.new(@table, ids.to_a)
     end
 
     private
 
+    def _db
+      Thread.current[:rndb_database]
+    end
+
     def _id(index)
-      index += self.length if index < 0
+      index += self.count while index < 0
       case @ids.first
       when Range
         @ids.each do |range|
@@ -96,32 +98,16 @@ module RnDB
       klass._migrate(size)
     end
 
-    def query(table, constraints={})
-      ids = [(0...SIZE)]
-      constraints.each do |property, values|
-        values = [values] unless values.is_a?(Array)
-        ranges = values.map { |value| @mapping[property][value] }.flatten
-        ids = _intersect(ids, ranges)
-      end
-      Query.new(ids)
-    end
-
-    private
-
-    def _intersect(ranges_1, ranges_2)
-      retval = []
-      ranges_1.each do |range_1|
-        ranges_2.each do |range_2|
-          next if range_1.min > range_2.max
-          next if range_2.min > range_1.max
-          retval << ([range_1.min, range_2.min].max...[range_1.max, range_2.max].min + 1)
-        end
-      end
-      retval
+    def schema
+      Thread.current[:rndb_tables]
     end
   end
 
   class Table
+    class << self
+      include Enumerable
+    end
+
     attr_reader :id
 
     def initialize(id)
@@ -144,42 +130,45 @@ module RnDB
       name.downcase.to_sym
     end
 
-    def self.count
-      _schema[:size]
+    def self.[](index)
+      self.new(index)
     end
 
-    def self.[](id)
-      id += count while id < 0
-      return nil if id >= count
-      new(id)
-    end
-
-    def self.find(id)
-      self[id]
-    end
-
-    def self.value(id, property)
-      puts "(gen #{property}@#{id})"
-      column = _schema[:columns][property]
-      value =
-        unless column[:mapping].nil?
-          column[:mapping].find do |value, ranges|
-            ranges.any? { |range| range.include?(id) }
-          end&.first
-        end
-      unless column[:generator].nil?
-        self._seed_prng(id, property)
-        if value.nil?
-          value = column[:generator].call(@id)
-        else
-          value = column[:generator].call(@id, value)
-        end
+    def self.where(constraints={})
+      ids = [(0..._schema[:size])]
+      constraints.each do |property, values|
+        values = [values] unless values.is_a?(Array)
+        column = _schema[:columns][property]
+        ranges = values.map { |value| column[:mapping][value] }.flatten
+        ids = _intersect(ids, ranges)
       end
-      value
+      Query.new(self, ids)
     end
 
-    # TODO: add generator for each property with accessor that caches results in
-    #       attributes, and add attributes method that generates everything
+    def self.all
+      where
+    end
+
+    def self.count
+      all.count
+    end
+
+    def self.last
+      all.last
+    end
+
+    def self.each(&block)
+      all.each(&block)
+    end
+
+    def self.pluck(*args)
+      all.pluck(args)
+    end
+
+    def self.sample(limit=1)
+      all.sample(limit)
+    end
+
     def self.column(property, *args)
       args.each do |arg|
         index =
@@ -202,7 +191,39 @@ module RnDB
       _db.prng.rand(args)
     end
 
+    def self.value(id, property)
+      return id if property == :id
+      column = _schema[:columns][property]
+      value =
+        unless column[:mapping].nil?
+          column[:mapping].find do |value, ranges|
+            ranges.any? { |range| range.include?(id) }
+          end&.first
+        end
+      unless column[:generator].nil?
+        self._seed_prng(id, property)
+        if value.nil?
+          value = column[:generator].call(@id)
+        else
+          value = column[:generator].call(@id, value)
+        end
+      end
+      value
+    end
+
     private
+
+    def self._intersect(ranges_1, ranges_2)
+      retval = []
+      ranges_1.each do |range_1|
+        ranges_2.each do |range_2|
+          next if range_1.min > range_2.max
+          next if range_2.min > range_1.max
+          retval << ([range_1.min, range_2.min].max...[range_1.max, range_2.max].min + 1)
+        end
+      end
+      retval
+    end
 
     def self._db
       Thread.current[:rndb_database]
@@ -245,6 +266,7 @@ module RnDB
         start = range.first
         column[:distribution].each do |value, probability|
           length = (range.count * probability).to_i
+          raise if length.zero?
           column[:mapping][value] << (start...start+length)
           start += length
         end
@@ -327,13 +349,24 @@ end
 DB = RnDB::Database.new(137)
 # DB.prng = Crypt::ISAAC
 DB.add_table(Ball, 1_000_000)
-# puts JSON.pretty_generate(Thread.current[:rndb_tables])
 
-puts Ball.count
-ball = Ball.find(13)
-puts ball
+query = Ball.where(:colour => [:red, :blue], :material => :wood)
+puts "Count: #{query.count}"
+puts "First: #{query.first}"
+puts "Last: #{query.last}"
+puts "Find: #{query.find { |ball| !ball.transparent }}"
+puts "Sample..."
+puts query.sample(10).pluck(:id, :name, :weight, :move)
+puts "Filter..."
+puts query.lazy.filter { |ball| ball.move =~ /fire/i }.take(10).to_a
 
-#puts Ball.find_by(weight: 42)
-#puts Ball.filter_by(:name) { |name| name =~ /John/ }.take(3).to_a
-#puts Ball.where(:colour => [:red, :blue], :material => :wood).sample(30).pluck(:weight_name)
-#puts Ball.where(:colour => [:red, :blue]).where(:material => :wood).sample(30).pluck(:weight_name)
+puts "---"
+
+puts "Count: #{Ball.count}"
+puts "First: #{Ball.first}"
+puts "Last: #{Ball.last}"
+puts "Find: #{Ball.find { |ball| ball.location =~ /island/i }}"
+puts "Sample..."
+puts Ball.sample(10).pluck(:id, :name, :weight, :move)
+puts "Filter..."
+puts Ball.lazy.filter { |ball| ball.move =~ /fire/i }.take(10).to_a
