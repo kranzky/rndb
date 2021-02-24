@@ -9,12 +9,7 @@ module RnDB
     end
 
     def count
-      case @ids.first
-      when Slice
-        @ids.map(&:count).sum
-      else
-        @ids.count
-      end
+      @ids.map(&:count).sum
     end
 
     def [](index)
@@ -46,7 +41,7 @@ module RnDB
       ids = Set.new
       while ids.count < [limit, count].min
         index = _db.prng.rand(count)
-        ids << _id(index)
+        ids << Slice.new(_id(index), _id(index))
       end
       self.class.new(@table, ids.to_a)
     end
@@ -59,16 +54,11 @@ module RnDB
 
     def _id(index)
       index += count while index.negative?
-      case @ids.first
-      when Slice
-        @ids.each do |range|
-          return range.min + index if index < range.count
-          index -= range.count
-        end
-        nil
-      else
-        @ids[index]
+      @ids.each do |range|
+        return range.min + index if index < range.count
+        index -= range.count
       end
+      nil
     end
   end
 end
