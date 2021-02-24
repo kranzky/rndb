@@ -10,8 +10,8 @@ module RnDB
 
     def count
       case @ids.first
-      when Range
-        @ids.map(&:count).sum
+      when Slice
+        @ids.map { |range| range.max - range.min + 1 }.sum
       else
         @ids.count
       end
@@ -60,9 +60,9 @@ module RnDB
     def _id(index)
       index += self.count while index < 0
       case @ids.first
-      when Range
+      when Slice
         @ids.each do |range|
-          count = range.count
+          count = (range.max - range.min + 1)
           if index < count
             return range.min + index
           else

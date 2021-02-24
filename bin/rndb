@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'byebug'
 require 'crypt/isaac'
@@ -6,6 +7,7 @@ require 'json'
 require 'faker'
 
 require_relative '../lib/rndb/database'
+require_relative '../lib/rndb/slice'
 require_relative '../lib/rndb/table'
 require_relative '../lib/rndb/query'
 
@@ -55,14 +57,18 @@ class Ball < RnDB::Table
 end
 
 DB = RnDB::Database.new(137)
-DB.prng = Crypt::ISAAC
-DB.add_table(Ball, 1_000_000)
+# DB.prng = Crypt::ISAAC
+DB.add_table(Ball, 1_000_000_000)
+
+# puts JSON.pretty_generate(DB.schema)
+
+puts "---"
 
 query = Ball.where(:colour => [:red, :blue], :material => :wood)
 puts "Count: #{query.count}"
 puts "First: #{query.first}"
 puts "Last: #{query.last}"
-puts "Find: #{query.find { |ball| !ball.transparent }}"
+puts "Find: #{Ball.find { |ball| ball.location =~ /island/i }}"
 puts "Sample..."
 puts query.sample(3).pluck(:id, :name, :weight, :move)
 puts "Filter..."
@@ -78,3 +84,9 @@ puts "Sample..."
 puts Ball.sample(3).pluck(:id, :name, :weight, :move)
 puts "Filter..."
 puts Ball.lazy.filter { |ball| ball.name =~ /slow/i }.take(3).to_a
+
+puts "---"
+
+debugger
+
+puts "EOF"
