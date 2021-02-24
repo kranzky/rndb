@@ -6,7 +6,7 @@ AllCops:
   TargetRubyVersion: 2.5
   DisplayCopNames: true
   Exclude:
-    - "punk.gemspec"
+    - "rndb.gemspec"
     - ".bundle/**/*"
     - "vendor/**/*"
     - "node_modules/**/*"

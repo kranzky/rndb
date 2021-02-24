@@ -4,14 +4,10 @@ require 'digest'
 
 module RnDB
   class Table
-    class << self
-      include Enumerable
-    end
-
     attr_reader :id
 
     def initialize(id)
-      self.class._validate!
+      _validate!
       @id = id
     end
 
@@ -27,184 +23,10 @@ module RnDB
       to_h.to_s
     end
 
-    def self.table_name
-      name.downcase.to_sym
-    end
-
-    def self.[](index)
-      _validate!
-      self.new(index) if index < count
-    end
-
-    def self.where(constraints={})
-      _validate!
-      ids = [Slice.new(0, _schema[:size] - 1)]
-      constraints.each do |property, values|
-        values = [values] unless values.is_a?(Array)
-        column = _schema[:columns][property]
-        ranges = values.map { |value| column[:mapping][value] }.flatten
-        ids = _intersect(ids, ranges)
-      end
-      Query.new(self, ids)
-    end
-
-    def self.all
-      where
-    end
-
-    def self.count
-      all.count
-    end
-
-    def self.last
-      all.last
-    end
-
-    def self.each(&block)
-      all.each(&block)
-    end
-
-    def self.pluck(*args)
-      all.pluck(args)
-    end
-
-    def self.sample(limit=1)
-      all.sample(limit)
-    end
-
-    def self.column(property, *args)
-      args.each do |arg|
-        index =
-          case arg
-          when Hash
-            :distribution
-          when Proc
-            :generator
-          else
-            raise "bad argument"
-          end
-        _schema[:columns][property][index] = arg
-      end
-      define_method(property) do
-        _generate_column(property)
-      end
-    end
-
-    def self.rand(args)
-      _validate!
-      _db.prng.rand(args)
-    end
-
-    def self.value(id, property)
-      _validate!
-      return id if property == :id
-      column = _schema[:columns][property]
-      value =
-        unless column[:distribution].nil?
-          column[:mapping].find do |value, ranges|
-            ranges.any? { |range| range.include?(id) }
-          end&.first
-        end
-      unless column[:generator].nil?
-        self._seed_prng(id, property)
-        value =
-          if column[:distribution].nil?
-            column[:generator].call
-          else
-            column[:generator].call(value)
-          end
-      end
-      value
-    end
-
     private
 
-    def self._intersect(ranges_1, ranges_2)
-      retval = []
-      ranges_1.each do |range_1|
-        ranges_2.each do |range_2|
-          retval << (range_1 & range_2)
-        end
-      end
-      retval.compact
-    end
-
-    def self._db
-      Thread.current[:rndb_database]
-    end
-
-    def self._migrate(size)
-      raise "table already migrated" unless _schema[:class].nil?
-      ranges = [Slice.new(0, size - 1)]
-      _schema[:columns].each do |property, column|
-        distribution = column[:distribution]
-        next if distribution.nil?
-        raise unless distribution.values.sum == 1
-        ranges = _add_mapping(column, ranges)
-      end
-      _schema[:size] = size
-      _schema[:class] = self
-    end
-
-    def self._schema
-      Thread.current[:rndb_tables] ||= Hash.new do |tables, name|
-        tables[name] = {
-          class: nil,
-          size: 0,
-          columns: Hash.new do |columns, key|
-            columns[key] = {
-              distribution: nil,
-              mapping: Hash.new do |distribution, value|
-                distribution[value] = []
-              end,
-              generator: nil
-            }
-          end,
-        }
-      end
-      Thread.current[:rndb_tables][table_name]
-    end
-
-    def self._add_mapping(column, ranges)
-      ranges.each do |range|
-        min = range.min
-        flength = 0.0
-        column[:distribution].each do |value, probability|
-          flength += range.count * probability
-          length = flength.round
-          if length > 0
-            column[:mapping][value] << Slice.new(min, min + length - 1)
-            min += length
-            flength -= length
-          end
-        end
-        if flength > 0.01
-          debugger
-        end
-      end
-      ranges.clear
-      column[:mapping].each do |value, distribution|
-        ranges << distribution
-      end
-      ranges.flatten
-    end
-
-    def self._seed_prng(id, property)
-      tuple = [_db.seed, table_name, property, id].join('-')
-      digest = Digest::SHA256.hexdigest(tuple)
-      value = digest.to_i(16) % 18446744073709551616
-      _db.prng.srand(value)
-      Faker::Config.random = _db.prng
-      value
-    end
-
-    def self._validate!
-      @@valid = (self == _schema[:class])
-      raise "table not added to database" unless @@valid
-    end
-
     def _generate_all
-      self.class._schema[:columns].keys.each do |name|
+      _schema[:columns].each_key do |name|
         _generate_column(name)
       end
       @_attributes
@@ -213,6 +35,189 @@ module RnDB
     def _generate_column(name)
       @_attributes ||= { id: @id }
       @_attributes[name] ||= self.class.value(@id, name)
+    end
+
+    def _validate!
+      self.class.send(:_validate!)
+    end
+
+    def _schema
+      self.class.send(:_schema)
+    end
+
+    class << self
+      include Enumerable
+
+      def table_name
+        name.downcase.to_sym
+      end
+
+      def [](index)
+        _validate!
+        new(index) if index < count
+      end
+
+      def where(constraints={})
+        _validate!
+        ids = [Slice.new(0, _schema[:size] - 1)]
+        constraints.each do |property, values|
+          column = _schema[:columns][property]
+          ranges = Array(values).map { |value| column[:mapping][value] }.flatten
+          ids = _intersect(ids, ranges)
+        end
+        Query.new(self, ids)
+      end
+
+      def all
+        where
+      end
+
+      def count
+        all.count
+      end
+
+      def last
+        all.last
+      end
+
+      def each(&block)
+        all.each(&block)
+      end
+
+      def pluck(*args)
+        all.pluck(args)
+      end
+
+      def sample(limit=1)
+        all.sample(limit)
+      end
+
+      def column(property, *args)
+        args.each do |arg|
+          index =
+            case arg
+            when Hash
+              :distribution
+            when Proc
+              :generator
+            else
+              raise "bad argument"
+            end
+          _schema[:columns][property][index] = arg
+        end
+        define_method(property) do
+          _generate_column(property)
+        end
+      end
+
+      def rand(args)
+        _validate!
+        _db.prng.rand(args)
+      end
+
+      def value(id, property)
+        _validate!
+        return id if property == :id
+        column = _schema[:columns][property]
+        value =
+          unless column[:distribution].nil?
+            column[:mapping].find do |_, ranges|
+              ranges.any? { |range| range.include?(id) }
+            end&.first
+          end
+        unless column[:generator].nil?
+          _seed_prng(id, property)
+          value =
+            if column[:distribution].nil?
+              column[:generator].call
+            else
+              column[:generator].call(value)
+            end
+        end
+        value
+      end
+
+      private
+
+      def _intersect(ranges_a, ranges_b)
+        retval = []
+        ranges_a.each do |range_a|
+          ranges_b.each do |range_b|
+            retval << (range_a & range_b)
+          end
+        end
+        retval.compact
+      end
+
+      def _db
+        Thread.current[:rndb_database]
+      end
+
+      def _migrate(size)
+        raise "table already migrated" unless _schema[:class].nil?
+        ranges = [Slice.new(0, size - 1)]
+        _schema[:columns].each_value do |column|
+          distribution = column[:distribution]
+          next if distribution.nil?
+          raise unless distribution.values.sum == 1
+          ranges = _add_mapping(column, ranges)
+        end
+        _schema[:size] = size
+        _schema[:class] = self
+      end
+
+      def _schema
+        Thread.current[:rndb_tables] ||= Hash.new do |tables, name|
+          tables[name] = {
+            class: nil,
+            size: 0,
+            columns: Hash.new do |columns, key|
+              columns[key] = {
+                distribution: nil,
+                mapping: Hash.new do |distribution, value|
+                  distribution[value] = []
+                end,
+                generator: nil
+              }
+            end
+          }
+        end
+        Thread.current[:rndb_tables][table_name]
+      end
+
+      def _add_mapping(column, ranges)
+        ranges.each do |range|
+          min = range.min
+          flength = 0.0
+          column[:distribution].each do |value, probability|
+            flength += range.count * probability
+            length = flength.round
+            next if length.zero?
+            column[:mapping][value] << Slice.new(min, min + length - 1)
+            min += length
+            flength -= length
+          end
+        end
+        ranges.clear
+        column[:mapping].each_value do |distribution|
+          ranges << distribution
+        end
+        ranges.flatten
+      end
+
+      def _seed_prng(id, property)
+        tuple = [_db.seed, table_name, property, id].join('-')
+        digest = Digest::SHA256.hexdigest(tuple)
+        value = digest.to_i(16) % 18_446_744_073_709_551_616
+        _db.prng.srand(value)
+        Faker::Config.random = _db.prng
+        value
+      end
+
+      def _validate!
+        @valid ||= (self == _schema[:class])
+        raise "table not added to database" unless @valid
+      end
     end
   end
 end

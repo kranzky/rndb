@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'faker'
 
 class Ball < RnDB::Table
@@ -16,19 +18,14 @@ class Ball < RnDB::Table
     light: 0.3,
     medium: 0.6,
     heavy: 0.1
-  }, -> value do
-    puts "x"
-    range =
-      case value
-      when :light
-        (0.1..3.0)
-      when :medium
-        (3.0..6.0)
-      when :heavy
-        (6.0..9.9)
-      end
-    self.rand(range)
-  end
+  }, lambda { |value|
+    lookup = {
+      light: (0.1..3.0),
+      medium: (3.0..6.0),
+      heavy: (6.0..9.9)
+    }
+    self.rand(lookup[value])
+  }
   column :material, {
     leather: 0.2,
     steel: 0.4,

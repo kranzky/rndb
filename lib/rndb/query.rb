@@ -22,7 +22,7 @@ module RnDB
     end
 
     def last
-      count == 0 ? nil : self[-1]
+      self[-1] unless count.zero?
     end
 
     def each
@@ -34,9 +34,9 @@ module RnDB
         if args.count == 1
           @table.value(_id(index), args.first)
         else
-          Hash[args.map do |property|
+          args.map do |property|
             [property, @table.value(_id(index), property)]
-          end]
+          end.to_h
         end
       end
     end
@@ -58,15 +58,12 @@ module RnDB
     end
 
     def _id(index)
-      index += self.count while index < 0
+      index += count while index.negative?
       case @ids.first
       when Slice
         @ids.each do |range|
-          if index < range.count
-            return range.min + index
-          else
-            index -= range.count
-          end
+          return range.min + index if index < range.count
+          index -= range.count
         end
         nil
       else
