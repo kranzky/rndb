@@ -13,7 +13,7 @@ module RnDB
     end
 
     def add_table(klass, size)
-      klass._migrate(size)
+      klass._migrate(size.to_i)
     end
 
     def schema

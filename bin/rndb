@@ -58,9 +58,20 @@ end
 
 DB = RnDB::Database.new(137)
 # DB.prng = Crypt::ISAAC
-DB.add_table(Ball, 1_000_000_000)
+DB.add_table(Ball, 1e12)
 
-# puts JSON.pretty_generate(DB.schema)
+puts JSON.pretty_generate(DB.schema)
+
+puts "---"
+
+puts "Count: #{Ball.count}"
+puts "First: #{Ball.first}"
+puts "Last: #{Ball.last}"
+puts "Find: #{Ball.find { |ball| ball.location =~ /island/i }}"
+puts "Sample..."
+puts Ball.sample(3).pluck(:id, :name, :weight, :move)
+puts "Filter..."
+puts Ball.lazy.filter { |ball| ball.name =~ /slow/i }.take(3).to_a
 
 puts "---"
 
@@ -73,17 +84,6 @@ puts "Sample..."
 puts query.sample(3).pluck(:id, :name, :weight, :move)
 puts "Filter..."
 puts query.lazy.filter { |ball| ball.move =~ /fire/i }.take(3).to_a
-
-puts "---"
-
-puts "Count: #{Ball.count}"
-puts "First: #{Ball.first}"
-puts "Last: #{Ball.last}"
-puts "Find: #{Ball.find { |ball| ball.location =~ /island/i }}"
-puts "Sample..."
-puts Ball.sample(3).pluck(:id, :name, :weight, :move)
-puts "Filter..."
-puts Ball.lazy.filter { |ball| ball.name =~ /slow/i }.take(3).to_a
 
 puts "---"
 

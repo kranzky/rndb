@@ -18,11 +18,11 @@ module RnDB
     end
 
     def [](index)
-      @table[_id(index)]
+      @table[_id(index)] if index < count
     end
 
     def last
-      self[-1]
+      count == 0 ? nil : self[-1]
     end
 
     def each
@@ -44,7 +44,7 @@ module RnDB
     def sample(limit=1)
       _db.prng.srand
       ids = Set.new
-      while ids.count < limit
+      while ids.count < [limit, count].min
         index = _db.prng.rand(count)
         ids << _id(index)
       end

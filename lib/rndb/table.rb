@@ -31,7 +31,7 @@ module RnDB
     end
 
     def self.[](index)
-      self.new(index)
+      self.new(index) if index < count
     end
 
     def self.where(constraints={})
@@ -162,11 +162,18 @@ module RnDB
     def self._add_mapping(column, ranges)
       ranges.each do |range|
         min = range.min
+        flength = 0.0
         column[:distribution].each do |value, probability|
-          length = (range.count * probability).to_i
-          raise if length.zero?
-          column[:mapping][value] << Slice.new(min, min + length - 1)
-          min += length
+          flength += range.count * probability
+          length = flength.round
+          if length > 0
+            column[:mapping][value] << Slice.new(min, min + length - 1)
+            min += length
+            flength -= length
+          end
+        end
+        if flength > 0.01
+          debugger
         end
       end
       ranges.clear
