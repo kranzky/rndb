@@ -36,22 +36,51 @@ DB = RnDB::Database.new(137)
 DB.add_table(Widget, 1e12)
 ```
 
-Finally, query that thing!
+Finally, fetch some records!
 
 ```
-> Widget.count
-=> 1000000000000
-> Widget[1234567890].name
-=> "Charmander"
-> Widget.find { |widget| (3.1415..3.1416).include?(widget.weight) }.attributes
-{:id=>61520, :weight=>3.1415121332762386, :colour=>:red, :name=>"Exeggcute"}
-> query = Widget.where(colour: [:brown, :orange], :weight => :heavy) ; query.count
-=> 4800000000
-> query.sample(2).pluck(:colour, :weight)
-=> [{:colour=>:orange, :weight=>10.958051883041504}, {:colour=>:brown, :weight=>18.232519081499262}]
-> query.lazy.filter { |ball| ball.name == 'Pikachu' }.map(&:id).take(10).to_a
-=> [429400000142, 429400000371, 429400000426, 429400000679, 429400000838, 429400000945, 429400001026, 429400001191, 429400001339, 429400001625]
+puts Widget.count
+puts Widget[1234567890].name
+puts Widget.find { |widget| (3.1415..3.1416).include?(widget.weight) }.attributes
 ```
+
+Which will display the following:
+
+```
+1000000000000
+Charmander
+{:id=>61520, :weight=>3.1415121332762386, :colour=>:red, :name=>"Exeggcute"}
+```
+
+Note that the `find` command tested over sixty thousand records in just a second
+or two without needing to generate all attributes of each record first. But an
+even faster way of honing in on a particular record is to run a query, such as:
+
+```
+query = Widget.where(colour: [:brown, :orange], :weight => :heavy)
+```
+
+You can then retrieve random records that match the query with `sample`, use
+`pluck` to retrieve specific attributes without generating all of them, and use
+`find` or `filter` to further refine your search, like this:
+
+```
+puts query.count
+puts query.sample.pluck(:colour, :weight)
+puts query.lazy.filter { |ball| ball.name == 'Pikachu' }.map(&:id).take(10).to_a
+```
+
+Which will display the following:
+
+```
+4800000000
+{:colour=>:orange, :weight=>16.096085279047017}
+[429400000068, 429400000087, 429400000875, 429400000885, 429400000914, 429400001036, 429400001062, 429400001330, 429400001341, 429400001438]
+```
+
+Note that we used the `lazy` enumerator when filtering records to prevent
+running the block on all records before performing the `map` and taking the
+first ten results.
 
 ## Copyright
 
