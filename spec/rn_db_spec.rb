@@ -38,9 +38,8 @@ class Ball < RnDB::Table
 end
 
 describe RnDB do
-  before(:all) do
-    DB = RnDB::Database.new(137)
-    DB.add_table(Ball, 1_000_000)
+  before(:all) do # rubocop:disable RSpec/BeforeAfterAll
+    RnDB::Database.new(137).add_table(Ball, 1_000_000)
   end
 
   it "can be counted" do
@@ -56,7 +55,7 @@ describe RnDB do
   end
 
   it "can find things" do
-    ball = Ball.find { |ball| ball.location =~ /island/i }
+    ball = Ball.find { |b| b.location =~ /island/i }
     expect(ball.location).to match(/Island/)
   end
 
@@ -70,9 +69,9 @@ describe RnDB do
     expect(moves.all? { |move| move =~ /Fire/ }).to be(true)
   end
 
-  context "for a query" do
+  context "when running a query" do
     let(:query) do
-      Ball.where(:colour => [:red, :blue], :material => :wood)
+      Ball.where(colour: [:red, :blue], material: :wood)
     end
 
     it "can be counted" do
@@ -88,7 +87,7 @@ describe RnDB do
     end
 
     it "can find things" do
-      ball = query.find { |ball| !ball.transparent }
+      ball = query.find { |b| !b.transparent }
       expect(ball.transparent).to be(false)
     end
 
