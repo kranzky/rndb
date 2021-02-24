@@ -35,7 +35,7 @@ module RnDB
     end
 
     def self.where(constraints={})
-      ids = [Slice.new(0, _schema[:size])]
+      ids = [Slice.new(0, _schema[:size] - 1)]
       constraints.each do |property, values|
         values = [values] unless values.is_a?(Array)
         column = _schema[:columns][property]
@@ -117,14 +117,10 @@ module RnDB
       retval = []
       ranges_1.each do |range_1|
         ranges_2.each do |range_2|
-          next if range_1.min > range_2.max
-          next if range_2.min > range_1.max
-          min = [range_1.min, range_2.min].max
-          max = [range_1.max, range_2.max].min
-          retval << Slice.new(min, max + 1)
+          retval << (range_1 & range_2)
         end
       end
-      retval
+      retval.compact
     end
 
     def self._db
@@ -133,7 +129,7 @@ module RnDB
 
     def self._migrate(size)
       raise "table already migrated" unless _schema[:class].nil?
-      ranges = [Slice.new(0, size)]
+      ranges = [Slice.new(0, size - 1)]
       _schema[:columns].each do |property, column|
         distribution = column[:distribution]
         next if distribution.nil?
@@ -165,12 +161,12 @@ module RnDB
 
     def self._add_mapping(column, ranges)
       ranges.each do |range|
-        start = range.first
+        min = range.min
         column[:distribution].each do |value, probability|
-          length = ((range.max - range.min + 1) * probability).to_i
+          length = (range.count * probability).to_i
           raise if length.zero?
-          column[:mapping][value] << Slice.new(start, start+length)
-          start += length
+          column[:mapping][value] << Slice.new(min, min + length - 1)
+          min += length
         end
       end
       ranges.clear
