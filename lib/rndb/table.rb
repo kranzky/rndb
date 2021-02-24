@@ -11,6 +11,7 @@ module RnDB
     attr_reader :id
 
     def initialize(id)
+      self.class._validate!
       @id = id
     end
 
@@ -31,10 +32,12 @@ module RnDB
     end
 
     def self.[](index)
+      _validate!
       self.new(index) if index < count
     end
 
     def self.where(constraints={})
+      _validate!
       ids = [Slice.new(0, _schema[:size] - 1)]
       constraints.each do |property, values|
         values = [values] unless values.is_a?(Array)
@@ -88,25 +91,28 @@ module RnDB
     end
 
     def self.rand(args)
+      _validate!
       _db.prng.rand(args)
     end
 
     def self.value(id, property)
+      _validate!
       return id if property == :id
       column = _schema[:columns][property]
       value =
-        unless column[:mapping].nil?
+        unless column[:distribution].nil?
           column[:mapping].find do |value, ranges|
             ranges.any? { |range| range.include?(id) }
           end&.first
         end
       unless column[:generator].nil?
         self._seed_prng(id, property)
-        if value.nil?
-          value = column[:generator].call(@id)
-        else
-          value = column[:generator].call(@id, value)
-        end
+        value =
+          if column[:distribution].nil?
+            column[:generator].call
+          else
+            column[:generator].call(value)
+          end
       end
       value
     end
@@ -190,6 +196,11 @@ module RnDB
       _db.prng.srand(value)
       Faker::Config.random = _db.prng
       value
+    end
+
+    def self._validate!
+      @@valid = (self == _schema[:class])
+      raise "table not added to database" unless @@valid
     end
 
     def _generate_all

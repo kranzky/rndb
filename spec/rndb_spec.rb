@@ -16,7 +16,8 @@ class Ball < RnDB::Table
     light: 0.3,
     medium: 0.6,
     heavy: 0.1
-  }, -> id, value do
+  }, -> value do
+    puts "x"
     range =
       case value
       when :light
@@ -34,15 +35,9 @@ class Ball < RnDB::Table
     wood: 0.3,
     fluff: 0.1
   }
-  column :name, -> id do
-    Faker::Games::Pokemon.name
-  end
-  column :location, -> id do
-    Faker::Games::Pokemon.location
-  end
-  column :move, -> id do
-    Faker::Games::Pokemon.move
-  end
+  column :name, -> { Faker::Games::Pokemon.name }
+  column :location, -> { Faker::Games::Pokemon.location }
+  column :move, -> { Faker::Games::Pokemon.move }
 end
 
 describe RnDB do
