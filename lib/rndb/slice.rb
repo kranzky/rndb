@@ -2,7 +2,7 @@
 
 module RnDB
   class Slice < Range
-    # A range that knows how to sort and intersect itself.
+    # A range that knows how to sort and intersect itself, private to Thickets.
     def initialize(min, max)
       super(min.to_i, max.to_i)
     end
@@ -21,11 +21,6 @@ module RnDB
     def &(other)
       return nil if min > other.max || max < other.min
       self.class.new([min, other.min].max, [max, other.max].min)
-    end
-
-    # We don't need union yet, but it'd be useful for OR queries.
-    def |(other)
-      self.class.new([min, other.min].min, [max, other.max].max)
     end
   end
 end

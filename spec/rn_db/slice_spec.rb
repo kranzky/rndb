@@ -17,10 +17,4 @@ describe RnDB::Slice do
     right = described_class.new(12, 17)
     expect(left & right).to be_nil
   end
-
-  it "can find the union of two slices" do
-    left = described_class.new(5, 13)
-    right = described_class.new(10, 17)
-    expect(left | right).to eq(described_class.new(5, 17))
-  end
 end

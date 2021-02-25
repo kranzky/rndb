@@ -29,7 +29,7 @@ module RnDB
       @ids.each { |id| yield @table[id] }
     end
 
-    # Return an array or a hash of pucked values, avoiding generation of all attributes.
+    # Return an array or a hash of plucked values, avoiding generation of all attributes.
     def pluck(*args)
       @ids.map do |id|
         if args.count == 1
