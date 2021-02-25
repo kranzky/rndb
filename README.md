@@ -1,6 +1,5 @@
-TEST
+[![test](https://github.com/kranzky/rndb/actions/workflows/test.yml/badge.svg)](https://github.com/kranzky/rndb/actions/workflows/test.yml)
 [![Coverage Status](https://coveralls.io/repos/github/kranzky/rndb/badge.svg?branch=main)](https://coveralls.io/github/kranzky/rndb?branch=main)
-GEM
 
 # RnDB
 
