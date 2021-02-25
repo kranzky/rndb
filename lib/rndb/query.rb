@@ -9,28 +9,28 @@ module RnDB
     end
 
     def count
-      @ids.map(&:count).sum
+      @ids.count
     end
 
     def [](index)
-      @table[_id(index)] if index < count
+      @table[@ids[index]]
     end
 
     def last
-      self[-1] unless count.zero?
+      self[-1]
     end
 
     def each
-      (0...count).each { |index| yield self[index] }
+      @ids.each { |id| yield @table[id] }
     end
 
     def pluck(*args)
-      (0...count).map do |index|
+      @ids.map do |id|
         if args.count == 1
-          @table.value(_id(index), args.first)
+          @table.value(id, args.first)
         else
           args.map do |property|
-            [property, @table.value(_id(index), property)]
+            [property, @table.value(id, property)]
           end.to_h
         end
       end
@@ -38,27 +38,13 @@ module RnDB
 
     def sample(limit=1)
       _db.prng.srand
-      ids = Set.new
-      while ids.count < [limit, count].min
-        index = _db.prng.rand(count)
-        ids << Slice.new(_id(index), _id(index))
-      end
-      self.class.new(@table, ids.to_a)
+      self.class.new(@table, @ids.sample(limit, _db.prng))
     end
 
     private
 
     def _db
       Thread.current[:rndb_database]
-    end
-
-    def _id(index)
-      index += count while index.negative?
-      @ids.each do |range|
-        return range.min + index if index < range.count
-        index -= range.count
-      end
-      nil
     end
   end
 end

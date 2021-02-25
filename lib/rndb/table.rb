@@ -65,8 +65,21 @@ module RnDB
           ranges = Array(values).map { |value| column[:mapping][value] }.flatten
           ids = _intersect(ids, ranges)
         end
-        Query.new(self, ids)
+        thicket = Thicket.new
+        ids.each { |range| thicket << range }
+        Query.new(self, thicket)
       end
+      # TODO: move to Thicket &
+      def _intersect(ranges_a, ranges_b)
+        retval = []
+        ranges_a.each do |range_a|
+          ranges_b.each do |range_b|
+            retval << (range_a & range_b)
+          end
+        end
+        retval.compact
+      end
+
 
       def all
         where
@@ -139,31 +152,8 @@ module RnDB
 
       private
 
-      def _intersect(ranges_a, ranges_b)
-        retval = []
-        ranges_a.each do |range_a|
-          ranges_b.each do |range_b|
-            retval << (range_a & range_b)
-          end
-        end
-        retval.compact
-      end
-
       def _db
         Thread.current[:rndb_database]
-      end
-
-      def _migrate(size)
-        raise "table already migrated" unless _schema[:class].nil?
-        ranges = [Slice.new(0, size - 1)]
-        _schema[:columns].each_value do |column|
-          distribution = column[:distribution]
-          next if distribution.nil?
-          raise unless distribution.values.sum == 1
-          ranges = _add_mapping(column, ranges)
-        end
-        _schema[:size] = size
-        _schema[:class] = self
       end
 
       def _schema
@@ -183,6 +173,21 @@ module RnDB
           }
         end
         Thread.current[:rndb_tables][table_name]
+      end
+
+      def _migrate(size)
+        raise "table already migrated" unless _schema[:class].nil?
+        # TODO: ranges = Thicket.new(0, size-1)
+        # TODO: figure out an elegant implementation with thickets
+        ranges = [Slice.new(0, size - 1)]
+        _schema[:columns].each_value do |column|
+          distribution = column[:distribution]
+          next if distribution.nil?
+          raise unless distribution.values.sum == 1
+          ranges = _add_mapping(column, ranges)
+        end
+        _schema[:size] = size
+        _schema[:class] = self
       end
 
       def _add_mapping(column, ranges)

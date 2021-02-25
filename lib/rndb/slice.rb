@@ -2,8 +2,16 @@
 
 module RnDB
   class Slice < Range
+    def initialize(min, max)
+      super(min.to_i, max.to_i)
+    end
+
     def count
       max - min + 1
+    end
+
+    def <=>(other)
+      min <=> other.min
     end
 
     def &(other)
