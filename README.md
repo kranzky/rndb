@@ -86,6 +86,12 @@ Note that we used the `lazy` enumerator when filtering records to prevent
 running the block on all records before performing the `map` and taking the
 first ten results.
 
+## Release Process
+
+1. `rake version:bump:whatever`
+2. `rake git:release BRANCH=main`
+3. Create new release on GitHub to trigger ship workflow
+
 ## Copyright
 
 Copyright (c) 2021 Jason Hutchens. See LICENSE for further details.
