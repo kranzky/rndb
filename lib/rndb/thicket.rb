@@ -5,9 +5,9 @@ module RnDB
     include Enumerable
 
     # A sorted array of disjoint ranges, optionally initialised with a default range.
-    def initialize(min=nil, max=nil)
+    def initialize(range=nil)
       @ids = []
-      @ids << Slice.new(min, max) unless min.nil? || max.nil?
+      @ids << Slice.new(range.min, range.max) unless range.nil?
     end
 
     # Append a range, throwing an error if it overlaps with an existing range,
@@ -22,6 +22,14 @@ module RnDB
 
     # Intersect two Thickets, useful when performing queries.
     def &(other)
+      retval = self.class.new
+      @ids.each do |slice|
+        other.slices.each do |other_slice|
+          next unless intersection = slice & other_slice
+          retval << intersection
+        end
+      end
+      retval
     end
 
     # Sum the counts of the Slices in the Thicket.
@@ -71,5 +79,11 @@ module RnDB
 
     alias min first
     alias max last
+
+    protected
+
+    def slices
+      @ids
+    end
   end
 end

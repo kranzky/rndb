@@ -7,7 +7,7 @@ describe RnDB::Thicket do
   end
 
   it "can be initialized with a value" do
-    thicket = described_class.new(2, 21)
+    thicket = described_class.new(2..21)
     expect(thicket.count).to eq((2..21).size)
   end
 
@@ -19,7 +19,7 @@ describe RnDB::Thicket do
   end
 
   it "can contain large values" do
-    thicket = described_class.new(7, 1e15)
+    thicket = described_class.new(7..1e15)
     expect((thicket.min..thicket.max)).to eq((7..1e15.to_i))
   end
 

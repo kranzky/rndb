@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'digest'
+require 'byebug'
 
 module RnDB
   class Table
@@ -66,24 +67,17 @@ module RnDB
       # Return a Query that matches the supplied constraints
       def where(constraints={})
         _validate!
-        ids = [Slice.new(0, _schema[:size] - 1)]
+        ids = Thicket.new(0..._schema[:size])
         constraints.each do |attribute, values|
           column = _schema[:columns][attribute]
-          ranges = Array(values).map { |value| column[:mapping][value] }.flatten
-          ids = _intersect(ids, ranges)
-        end
-        thicket = Thicket.new
-        ids.each { |range| thicket << range }
-        Query.new(self, thicket)
-      end
-      def _intersect(ranges_a, ranges_b)
-        retval = []
-        ranges_a.each do |range_a|
-          ranges_b.each do |range_b|
-            retval << (range_a & range_b)
+          other = Array(values).reduce(Thicket.new) do |thicket, value|
+            column[:mapping][value].reduce(thicket) do |_, range|
+              thicket << range
+            end
           end
+          ids &= other
         end
-        retval.compact
+        Query.new(self, ids)
       end
 
       # Return all records.
@@ -192,7 +186,7 @@ module RnDB
 
       def _migrate(size)
         raise "table already migrated" unless _schema[:class].nil?
-        # TODO: ranges = Thicket.new(0, size-1)
+        # TODO: ranges = Thicket.new(0...size)
         # TODO: figure out an elegant implementation with thickets
         ranges = [Slice.new(0, size - 1)]
         _schema[:columns].each_value do |column|
