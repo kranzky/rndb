@@ -6,19 +6,23 @@ module RnDB
   class Table
     attr_reader :id
 
+    # Create a new record wit the given ID.
     def initialize(id)
       _validate!
       @id = id
     end
 
+    # Generate all attributes, which may be expensive.
     def attributes
       _generate_all
     end
 
+    # Return the attributes as a hash.
     def to_h
       attributes
     end
 
+    # Return a stringified version of the attributes hash.
     def to_s
       to_h.to_s
     end
@@ -48,20 +52,23 @@ module RnDB
     class << self
       include Enumerable
 
+      # Return the name of the table, which is derived from the class name.
       def table_name
         name.downcase.to_sym
       end
 
+      # Return a new record corresponding to the specified index.
       def [](index)
         _validate!
         new(index) if index < count
       end
 
+      # Return a Query that matches the supplied constraints
       def where(constraints={})
         _validate!
         ids = [Slice.new(0, _schema[:size] - 1)]
-        constraints.each do |property, values|
-          column = _schema[:columns][property]
+        constraints.each do |attribute, values|
+          column = _schema[:columns][attribute]
           ranges = Array(values).map { |value| column[:mapping][value] }.flatten
           ids = _intersect(ids, ranges)
         end
@@ -69,7 +76,6 @@ module RnDB
         ids.each { |range| thicket << range }
         Query.new(self, thicket)
       end
-      # TODO: move to Thicket &
       def _intersect(ranges_a, ranges_b)
         retval = []
         ranges_a.each do |range_a|
@@ -80,32 +86,38 @@ module RnDB
         retval.compact
       end
 
-
+      # Return all records.
       def all
         where
       end
 
+      # Count all records, delegating this to the all Query.
       def count
         all.count
       end
 
+      # Return the last record, to be consistent with #first, which we get by magic.
       def last
         all.last
       end
 
+      # Iterate over all records, delegating this to the all Query
       def each(&block)
         all.each(&block)
       end
 
+      # Pluck specified attributes from all records, delegating this to the all query.
       def pluck(*args)
         all.pluck(args)
       end
 
+      # Return a Querty that contains a random sampling of records.
       def sample(limit=1)
         all.sample(limit)
       end
 
-      def column(property, *args)
+      # Add a new column to the Table model.
+      def column(attribute, *args)
         args.each do |arg|
           index =
             case arg
@@ -116,22 +128,25 @@ module RnDB
             else
               raise "bad argument"
             end
-          _schema[:columns][property][index] = arg
+          _schema[:columns][attribute][index] = arg
         end
-        define_method(property) do
-          _generate_column(property)
+        define_method(attribute) do
+          _generate_column(attribute)
         end
       end
 
+      # Generate a random number, intended to be used in lambdas. The number
+      # will have been seeded appropriately to ensure determinism.
       def rand(args)
         _validate!
         _db.prng.rand(args)
       end
 
-      def value(id, property)
+      # Retrieve the value of the given attribute for the given ID.
+      def value(id, attribute)
         _validate!
-        return id if property == :id
-        column = _schema[:columns][property]
+        return id if attribute == :id
+        column = _schema[:columns][attribute]
         value =
           unless column[:distribution].nil?
             column[:mapping].find do |_, ranges|
@@ -139,7 +154,7 @@ module RnDB
             end&.first
           end
         unless column[:generator].nil?
-          _seed_prng(id, property)
+          _seed_prng(id, attribute)
           value =
             if column[:distribution].nil?
               column[:generator].call
@@ -189,7 +204,6 @@ module RnDB
         _schema[:size] = size
         _schema[:class] = self
       end
-
       def _add_mapping(column, ranges)
         ranges.each do |range|
           min = range.min
@@ -210,8 +224,8 @@ module RnDB
         ranges.flatten
       end
 
-      def _seed_prng(id, property)
-        tuple = [_db.seed, table_name, property, id].join('-')
+      def _seed_prng(id, attribute)
+        tuple = [_db.seed, table_name, attribute, id].join('-')
         digest = Digest::SHA256.hexdigest(tuple)
         value = digest.to_i(16) % 18_446_744_073_709_551_616
         _db.prng.srand(value)
