@@ -27,11 +27,6 @@ describe RnDB::Database do
     expect(ids.sort.uniq.size).to eq(10)
   end
 
-  it "can filter things" do
-    moves = Ball.lazy.filter { |ball| ball.move =~ /fire/i }.take(10).map(&:move)
-    expect(moves.all? { |move| move =~ /Fire/ }).to be(true)
-  end
-
   context "when running a query" do
     let(:query) do
       Ball.where(colour: [:red, :blue], material: :wood)
@@ -57,11 +52,6 @@ describe RnDB::Database do
     it "can take random samples" do
       ids = query.sample(10).pluck(:id)
       expect(ids.sort.uniq.size).to eq(10)
-    end
-
-    it "can filter things" do
-      moves = query.lazy.filter { |ball| ball.move =~ /fire/i }.take(10).map(&:move)
-      expect(moves.all? { |move| move =~ /Fire/ }).to be(true)
     end
   end
 end
