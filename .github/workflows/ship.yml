@@ -13,7 +13,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 2.5.8
+        ruby-version: 2.6.6
         bundler-cache: true
     - name: Deploy to RubyGems
       run: |
