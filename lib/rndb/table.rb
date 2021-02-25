@@ -71,9 +71,7 @@ module RnDB
         constraints.each do |attribute, values|
           column = _schema[:columns][attribute]
           other = Array(values).reduce(Thicket.new) do |thicket, value|
-            column[:mapping][value].reduce(thicket) do |_, range|
-              thicket << range
-            end
+            thicket | column[:mapping][value]
           end
           ids &= other
         end
@@ -120,7 +118,7 @@ module RnDB
             when Proc
               :generator
             else
-              raise "bad argument"
+              raise "unsupported column parameter"
             end
           _schema[:columns][attribute][index] = arg
         end
@@ -143,8 +141,8 @@ module RnDB
         column = _schema[:columns][attribute]
         value =
           unless column[:distribution].nil?
-            column[:mapping].find do |_, ranges|
-              ranges.any? { |range| range.include?(id) }
+            column[:mapping].find do |_, ids|
+              ids.include?(id)
             end&.first
           end
         unless column[:generator].nil?
@@ -173,9 +171,7 @@ module RnDB
             columns: Hash.new do |columns, key|
               columns[key] = {
                 distribution: nil,
-                mapping: Hash.new do |distribution, value|
-                  distribution[value] = []
-                end,
+                mapping: {},
                 generator: nil
               }
             end
@@ -186,36 +182,24 @@ module RnDB
 
       def _migrate(size)
         raise "table already migrated" unless _schema[:class].nil?
-        # TODO: ranges = Thicket.new(0...size)
-        # TODO: figure out an elegant implementation with thickets
-        ranges = [Slice.new(0, size - 1)]
+        ids = Thicket.new(0...size)
         _schema[:columns].each_value do |column|
           distribution = column[:distribution]
           next if distribution.nil?
-          raise unless distribution.values.sum == 1
-          ranges = _add_mapping(column, ranges)
+          raise "distribution must sum to unity" unless distribution.values.sum == 1
+          min = 0.0
+          column[:distribution].each do |value, probability|
+            max = min + probability
+            column[:mapping][value] = ids * (min..max)
+            min = max
+          end
+          ids =
+            column[:mapping].values.reduce(Thicket.new) do |thicket, other|
+              thicket | other
+            end
         end
         _schema[:size] = size
         _schema[:class] = self
-      end
-      def _add_mapping(column, ranges)
-        ranges.each do |range|
-          min = range.min
-          flength = 0.0
-          column[:distribution].each do |value, probability|
-            flength += range.count * probability
-            length = flength.round
-            next if length.zero?
-            column[:mapping][value] << Slice.new(min, min + length - 1)
-            min += length
-            flength -= length
-          end
-        end
-        ranges.clear
-        column[:mapping].each_value do |distribution|
-          ranges << distribution
-        end
-        ranges.flatten
       end
 
       def _seed_prng(id, attribute)

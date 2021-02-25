@@ -21,7 +21,7 @@ module RnDB
 
     # Implemented to be consistent with #first, which we get by magic.
     def last
-      self[-1]
+      self[-1] unless count.zero?
     end
 
     # Delegate iteration to the Thicket, yielding records to the caller.

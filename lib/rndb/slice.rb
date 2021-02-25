@@ -2,7 +2,6 @@
 
 module RnDB
   class Slice < Range
-
     # A range that knows how to sort and intersect itself.
     def initialize(min, max)
       super(min.to_i, max.to_i)

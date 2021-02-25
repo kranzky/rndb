@@ -14,7 +14,7 @@ module RnDB
     # and keeping the resulting array sorted so we can iterate over values.
     def <<(range)
       slice = Slice.new(range.min, range.max)
-      raise "Slices in thicket must be disjoint!" unless @ids.all? { |id| (id & slice).nil? }
+      raise "slices in thicket must be disjoint" unless @ids.all? { |id| (id & slice).nil? }
       @ids << Slice.new(range.min, range.max)
       @ids.sort!
       self
@@ -23,13 +23,30 @@ module RnDB
     # Intersect two Thickets, useful when performing queries.
     def &(other)
       retval = self.class.new
-      @ids.each do |slice|
+      slices.each do |slice|
         other.slices.each do |other_slice|
-          next unless intersection = slice & other_slice
+          next unless (intersection = slice & other_slice)
           retval << intersection
         end
       end
       retval
+    end
+
+    # Merge two Thickets, which we need during migrations.
+    def |(other)
+      retval = self.class.new
+      slices.each { |slice| retval << slice }
+      other.slices.each { |slice| retval << slice }
+      retval
+    end
+
+    # Subdivide a Thicket with a probability range, also used for migrations.
+    def *(other)
+      slices.each_with_object(self.class.new) do |slice, thicket|
+        min = slice.min + (slice.count * other.min).round
+        max = slice.min + (slice.count * other.max).round - 1
+        thicket << (min..max) unless max < min
+      end
     end
 
     # Sum the counts of the Slices in the Thicket.
@@ -57,6 +74,11 @@ module RnDB
       nil
     end
 
+    # Test whether the specified ID exists in this Thicket.
+    def include?(id)
+      @ids.any? { |slice| slice.include?(id) }
+    end
+
     # Implemented to be consistent with #first, which we get by magic.
     def last
       self[-1] unless count.zero?
@@ -72,9 +94,14 @@ module RnDB
       ids = Set.new
       limit = [limit, count].min
       ids << self[prng.rand(count)] while ids.count < limit
-      ids.sort.reduce(self.class.new) do |thicket, id|
+      ids.sort.each_with_object(self.class.new) do |id, thicket|
         thicket << Slice.new(id, id)
       end
+    end
+
+    # We display the internal slices.
+    def to_s
+      slices.to_s
     end
 
     alias min first
