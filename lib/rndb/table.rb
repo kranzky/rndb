@@ -34,12 +34,24 @@ module RnDB
       _schema[:columns].each_key do |name|
         _generate_column(name)
       end
+      _schema[:associations].each_key do |name|
+        _generate_association_id(name)
+      end
       @_attributes
     end
 
     def _generate_column(name)
       @_attributes ||= { id: @id }
       @_attributes[name] ||= self.class.value(@id, name)
+    end
+
+    def _generate_association_id(name)
+      @_attributes ||= { id: @id }
+      @_attributes["#{name}_id".to_sym] ||= _generate_association(name)&.id
+    end
+
+    def _generate_association(name)
+      self.class.join(@id, name)
     end
 
     def _validate!
@@ -119,8 +131,17 @@ module RnDB
         end
       end
 
-      # Add a relation between two Table models.
-      def relation(attribute, *args)
+      # Add an association between two Table models.
+      def association(attribute, *args)
+        args.each do |arg|
+          _schema[:associations][attribute] = arg
+        end
+        define_method("#{attribute}_id".to_sym) do
+          _generate_association_id(attribute)
+        end
+        define_method(attribute) do
+          _generate_association(attribute)
+        end
       end
 
       # Generate a random number, intended to be used in lambdas. The number
@@ -154,9 +175,24 @@ module RnDB
         value
       end
 
+      # Return the instance joined to the current ID.
+      def join(id, name)
+        _schema[:associations][name].each do |context|
+          next unless (index = where(context[:where]).index(id))
+          return where(context[:joins])[index]
+        end
+        nil
+      end
+
       def get(attribute)
         raise unless @current
-        value(@current, attribute)
+        if _schema[:columns].key?(attribute)
+          value(@current, attribute)
+        elsif _schema[:associations].key?(attribute)
+          join(@current, attribute)
+        else
+          raise "no such attribute"
+        end
       end
 
       private
@@ -176,6 +212,9 @@ module RnDB
                 mapping: {},
                 generator: nil
               }
+            end,
+            associations: Hash.new do |associations, key|
+              associations[key] = nil
             end
           }
         end

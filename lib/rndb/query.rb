@@ -19,6 +19,11 @@ module RnDB
       @table[@ids[index]]
     end
 
+    # Retrieve the index of the specified ID.
+    def index(id)
+      @ids.index(id)
+    end
+
     # Implemented to be consistent with #first, which we get by magic.
     def last
       self[-1] unless count.zero?
