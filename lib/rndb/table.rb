@@ -31,13 +31,19 @@ module RnDB
     private
 
     def _generate_all
-      _schema[:columns].each_key do |name|
+      _schema[:columns].each do |name, column|
+        _generate_column_key(name) if column[:generator] && column[:distribution]
         _generate_column(name)
       end
       _schema[:associations].each_key do |name|
         _generate_association_id(name)
       end
       @_attributes
+    end
+
+    def _generate_column_key(name)
+      @_attributes ||= { id: @id }
+      @_attributes["#{name}_key".to_sym] ||= self.class.key(@id, name)
     end
 
     def _generate_column(name)
@@ -114,6 +120,7 @@ module RnDB
 
       # Add a new column to the Table model.
       def column(attribute, *args)
+        column = _schema[:columns][attribute]
         args.each do |arg|
           index =
             case arg
@@ -124,7 +131,12 @@ module RnDB
             else
               raise "unsupported column parameter"
             end
-          _schema[:columns][attribute][index] = arg
+          column[index] = arg
+        end
+        if column[:generator] && column[:distribution]
+          define_method("#{attribute}_key") do
+            _generate_column_key(attribute)
+          end
         end
         define_method(attribute) do
           _generate_column(attribute)
@@ -151,18 +163,24 @@ module RnDB
         _db.prng.rand(*args)
       end
 
+      # Retrieve the key that can be queried on for generated attributes.
+      def key(id, attribute)
+        @current = id
+        _validate!
+        column = _schema[:columns][attribute]
+        return if column[:distribution].nil?
+        column[:mapping].find do |_, ids|
+          ids.include?(id)
+        end&.first
+      end
+
       # Retrieve the value of the given attribute for the given ID.
       def value(id, attribute)
         @current = id
         _validate!
         return id if attribute == :id
         column = _schema[:columns][attribute]
-        value =
-          unless column[:distribution].nil?
-            column[:mapping].find do |_, ids|
-              ids.include?(id)
-            end&.first
-          end
+        value = key(id, attribute)
         unless column[:generator].nil?
           _seed_prng(id, attribute)
           value =
@@ -177,6 +195,7 @@ module RnDB
 
       # Return the instance joined to the current ID.
       def join(id, name)
+        @current = id
         _schema[:associations][name].each do |context|
           next unless (index = where(context[:where]).index(id))
           return where(context[:joins])[index]
