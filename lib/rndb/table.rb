@@ -67,15 +67,7 @@ module RnDB
       # Return a Query that matches the supplied constraints
       def where(constraints={})
         _validate!
-        ids = Thicket.new(0..._schema[:size])
-        constraints.each do |attribute, values|
-          column = _schema[:columns][attribute]
-          other = Array(values).reduce(Thicket.new) do |thicket, value|
-            thicket | column[:mapping][value]
-          end
-          ids &= other
-        end
-        Query.new(self, ids)
+        Query.new(self, _query(constraints, _schema[:size]))
       end
 
       # Return all records.
@@ -113,7 +105,7 @@ module RnDB
         args.each do |arg|
           index =
             case arg
-            when Hash
+            when Hash, Array
               :distribution
             when Proc
               :generator
@@ -125,6 +117,10 @@ module RnDB
         define_method(attribute) do
           _generate_column(attribute)
         end
+      end
+
+      # Add a relation between two Table models.
+      def relation(attribute, *args)
       end
 
       # Generate a random number, intended to be used in lambdas. The number
@@ -186,18 +182,43 @@ module RnDB
         Thread.current[:rndb_tables][table_name]
       end
 
+      def _query(constraints, size)
+        ids = Thicket.new(0...size)
+        constraints.each do |attribute, values|
+          column = _schema[:columns][attribute]
+          raise "no mapping for column" if column[:mapping].empty?
+          other = Array(values).reduce(Thicket.new) do |thicket, value|
+            thicket | column[:mapping][value]
+          end
+          ids &= other
+        end
+        ids
+      end
+
+      def _migrate_column(column, ids, distribution)
+        min = 0.0
+        distribution.each do |value, probability|
+          max = min + probability
+          column[:mapping][value] ||= Thicket.new
+          column[:mapping][value] |= ids * (min..max)
+          min = max
+        end
+      end
+
       def _migrate(size)
         raise "table already migrated" unless _schema[:class].nil?
         ids = Thicket.new(0...size)
         _schema[:columns].each_value do |column|
           distribution = column[:distribution]
           next if distribution.nil?
-          raise "distribution must sum to unity" unless distribution.values.sum == 1
-          min = 0.0
-          column[:distribution].each do |value, probability|
-            max = min + probability
-            column[:mapping][value] = ids * (min..max)
-            min = max
+          if distribution.is_a?(Array)
+            distribution.each do |context|
+              thicket = ids & _query(context[:where], size)
+              _migrate_column(column, thicket, context[:stats])
+            end
+          else
+            raise "distribution must sum to unity" unless distribution.values.sum == 1
+            _migrate_column(column, ids, distribution)
           end
           ids =
             column[:mapping].values.reduce(Thicket.new) do |thicket, other|
