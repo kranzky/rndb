@@ -129,13 +129,14 @@ module RnDB
 
       # Generate a random number, intended to be used in lambdas. The number
       # will have been seeded appropriately to ensure determinism.
-      def rand(args)
+      def rand(*args)
         _validate!
-        _db.prng.rand(args)
+        _db.prng.rand(*args)
       end
 
       # Retrieve the value of the given attribute for the given ID.
       def value(id, attribute)
+        @current = id
         _validate!
         return id if attribute == :id
         column = _schema[:columns][attribute]
@@ -155,6 +156,11 @@ module RnDB
             end
         end
         value
+      end
+
+      def get(attribute)
+        raise unless @current
+        value(@current, attribute)
       end
 
       private
