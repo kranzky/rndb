@@ -6,6 +6,10 @@
 
 RnDB is a procedurally-generated fake database.
 
+## Video Overview
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/hbn5J4yRrJ8/0.jpg)](https://www.youtube.com/watch?v=hbn5J4yRrJ8)
+
 ## Usage
 
 First, create tables with columns that may have a pre-determined distribution of
