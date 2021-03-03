@@ -12,10 +12,10 @@ group :development do
 end
 
 group :test do
-  gem 'coveralls', '~> 0.8'
+  gem 'coveralls_reborn', '~> 0.20'
   gem 'rspec', '~> 3.10'
   gem 'rspec-its', '~> 1.3'
-  gem 'rubocop', '~> 1.9'
+  gem 'rubocop', '~> 1.11'
   gem 'rubocop-rspec', '~> 2.2'
 end
 
