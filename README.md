@@ -2,6 +2,7 @@
 [![test](https://github.com/kranzky/rndb/actions/workflows/test.yml/badge.svg)](https://github.com/kranzky/rndb/actions/workflows/test.yml)
 [![Coverage Status](https://coveralls.io/repos/github/kranzky/rndb/badge.svg?branch=main)](https://coveralls.io/github/kranzky/rndb?branch=main)
 [![Gem Version](https://badge.fury.io/rb/rndb.svg)](https://badge.fury.io/rb/rndb)
+[![Western Australia](https://corona.kranzky.com/oc/anz/au/wa/badge.svg)](https://corona.kranzky.com?region=oc&subregion=anz&country=au&state=wa)
 
 # RnDB
 
