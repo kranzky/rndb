@@ -5,7 +5,11 @@ require:
 AllCops:
   TargetRubyVersion: 2.5
   DisabledByDefault: true
-  Exclude: []
+  Exclude:
+    - "rndb.gemspec"
+    - ".bundle/**/*"
+    - "vendor/**/*"
+    - "node_modules/**/*"
 
 Bundler/DuplicatedGem:
   Enabled: true
@@ -738,7 +742,7 @@ Security/YAMLLoad:
   Enabled: true
   SafeAutoCorrect: false
 
-Standard/BlockDelimiters:
+Style/BlockDelimiters:
   Enabled: true
 
 Style/Alias:
