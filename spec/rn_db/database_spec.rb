@@ -27,6 +27,25 @@ describe RnDB::Database do
     expect(ids.sort.uniq.size).to eq(10)
   end
 
+  it "allows columns to be mutated" do
+    ball = Ball.sample.first
+    ball.colour = "purple"
+    expect(Ball[ball.id].colour).to eq("purple")
+  end
+
+  it "can load mutated state" do
+    described_class.conn.load({ ball: { 12_345 => { colour: "indigo" } } })
+    ball = Ball[12_345]
+    expect(ball.colour).to eq("indigo")
+  end
+
+  it "exposes state mutations" do
+    described_class.conn.reset
+    ball = Ball.sample.first
+    ball.colour = "purple"
+    expect(described_class.conn.state[:ball]).to eq({ ball.id => { colour: "purple" } })
+  end
+
   context "when running a query" do
     let(:query) do
       Ball.where(colour: [:red, :blue], material: :wood)

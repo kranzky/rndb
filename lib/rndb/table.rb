@@ -140,6 +140,9 @@ module RnDB
         define_method(attribute) do
           _generate_column(attribute)
         end
+        define_method("#{attribute}=".to_sym) do |value|
+          self.class.send(:_set_state, id, attribute, value)
+        end
       end
 
       # Add an association between two Table models.
@@ -178,6 +181,8 @@ module RnDB
         @current = id
         _validate!
         return id if attribute == :id
+        override = _get_state(id, attribute)
+        return override unless override.nil?
         column = _schema[:columns][attribute]
         value = key(id, attribute)
         unless column[:generator].nil?
@@ -233,7 +238,8 @@ module RnDB
             end,
             associations: Hash.new do |associations, key|
               associations[key] = nil
-            end
+            end,
+            state: {}
           }
         end
         Thread.current[:rndb_tables][table_name]
@@ -298,6 +304,15 @@ module RnDB
       def _validate!
         @valid ||= (self == _schema[:class])
         raise "table not added to database" unless @valid
+      end
+
+      def _get_state(id, attribute)
+        _schema[:state][id] && _schema[:state][id][attribute]
+      end
+
+      def _set_state(id, attribute, value)
+        _schema[:state][id] ||= {}
+        _schema[:state][id][attribute] = value
       end
     end
   end

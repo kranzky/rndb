@@ -22,5 +22,31 @@ module RnDB
     def schema
       Thread.current[:rndb_tables]
     end
+
+    # Clear overridden state.
+    def reset
+      schema.each_value { |table| table[:state] = {} }
+    end
+
+    # Dump just the overridden state as a hash.
+    def state
+      schema.transform_values do |table|
+        table[:state]
+      end
+    end
+
+    # Load state from the given hash.
+    def load(state)
+      state.each do |name, value|
+        schema[name][:state] = value
+      end
+    end
+
+    class << self
+      # Get a connection to the database
+      def conn
+        Thread.current[:rndb_database]
+      end
+    end
   end
 end
