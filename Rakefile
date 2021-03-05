@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'rubygems'
-require 'bundler'
+require "rubygems"
+require "bundler"
 begin
   Bundler.setup(:default, :development)
 rescue Bundler::BundlerError => e
@@ -9,8 +9,8 @@ rescue Bundler::BundlerError => e
   warn "Run `bundle install` to install missing gems"
   exit e.status_code
 end
-require 'rake'
-require 'juwelier'
+require "rake"
+require "juwelier"
 Juwelier::Tasks.new do |gem|
   gem.name = "rndb"
   gem.homepage = "https://github.com/kranzky/rndb"
@@ -23,7 +23,9 @@ Juwelier::Tasks.new do |gem|
 end
 Juwelier::RubygemsDotOrgTasks.new
 
-require 'yard'
+require "yard"
 YARD::Rake::YardocTask.new
 
-task default: :clean
+require "standard/rake"
+
+task default: [:clean, "standard:fix"]

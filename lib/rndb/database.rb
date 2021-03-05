@@ -6,7 +6,7 @@ module RnDB
     attr_reader :seed
 
     # Opens a new fake database. A seed for the PRNG may be optionally supplied.
-    def initialize(seed=Time.now.to_i)
+    def initialize(seed = Time.now.to_i)
       raise "database already open" unless Thread.current[:rndb_database].nil?
       Thread.current[:rndb_database] = self
       @prng = Random

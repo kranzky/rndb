@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'digest'
+require "digest"
 
 module RnDB
   class Table
@@ -41,17 +41,17 @@ module RnDB
     end
 
     def _generate_column_key(name)
-      @_attributes ||= { id: @id }
+      @_attributes ||= {id: @id}
       @_attributes["#{name}_key".to_sym] ||= self.class.key(@id, name)
     end
 
     def _generate_column(name)
-      @_attributes ||= { id: @id }
+      @_attributes ||= {id: @id}
       @_attributes[name] ||= self.class.value(@id, name)
     end
 
     def _generate_association_id(name)
-      @_attributes ||= { id: @id }
+      @_attributes ||= {id: @id}
       @_attributes["#{name}_id".to_sym] ||= _generate_association(name)&.id
     end
 
@@ -82,7 +82,7 @@ module RnDB
       end
 
       # Return a Query that matches the supplied constraints
-      def where(constraints={})
+      def where(constraints = {})
         _validate!
         Query.new(self, _query(constraints, _schema[:size]))
       end
@@ -113,7 +113,7 @@ module RnDB
       end
 
       # Return a Querty that contains a random sampling of records.
-      def sample(limit=1)
+      def sample(limit = 1)
         all.sample(limit)
       end
 
@@ -294,7 +294,7 @@ module RnDB
       end
 
       def _seed_prng(id, attribute)
-        tuple = [_db.seed, table_name, attribute, id].join('-')
+        tuple = [_db.seed, table_name, attribute, id].join("-")
         digest = Digest::SHA256.hexdigest(tuple)
         value = digest.to_i(16) % 18_446_744_073_709_551_616
         _db.prng.srand(value)

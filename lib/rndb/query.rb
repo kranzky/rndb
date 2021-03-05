@@ -48,7 +48,7 @@ module RnDB
     end
 
     # Return a new query that takes a random sampling of IDs from the current query.
-    def sample(limit=1)
+    def sample(limit = 1)
       _db.prng.srand
       self.class.new(@table, @ids.sample(limit, _db.prng))
     end

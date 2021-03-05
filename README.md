@@ -1,3 +1,4 @@
+[![Ruby Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://github.com/testdouble/standard)
 [![test](https://github.com/kranzky/rndb/actions/workflows/test.yml/badge.svg)](https://github.com/kranzky/rndb/actions/workflows/test.yml)
 [![Coverage Status](https://coveralls.io/repos/github/kranzky/rndb/badge.svg?branch=main)](https://coveralls.io/github/kranzky/rndb?branch=main)
 [![Gem Version](https://badge.fury.io/rb/rndb.svg)](https://badge.fury.io/rb/rndb)
@@ -92,9 +93,11 @@ first ten results.
 
 ## Release Process
 
-1. `rake version:bump:whatever`
-2. `rake git:release BRANCH=main`
-3. Create new release on GitHub to trigger ship workflow
+1. `rake standard:fix`
+2. `rake version:bump:whatever`
+3. `rake gemspec:release BRANCH=main`
+4. `rake git:release BRANCH=main`
+5. Create new release on GitHub to trigger ship workflow
 
 ## Copyright
 

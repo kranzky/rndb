@@ -5,7 +5,7 @@ module RnDB
     include Enumerable
 
     # A sorted array of disjoint ranges, optionally initialised with a default range.
-    def initialize(range=nil)
+    def initialize(range = nil)
       @ids = []
       @ids << Slice.new(range.min, range.max) unless range.nil?
     end
@@ -90,7 +90,7 @@ module RnDB
     end
 
     # Return a Thicket that contains a sampling of IDs.
-    def sample(limit=1, prng=Random)
+    def sample(limit = 1, prng = Random)
       ids = Set.new
       limit = [limit, count].min
       ids << self[prng.rand(count)] while ids.count < limit
@@ -104,8 +104,8 @@ module RnDB
       slices.to_s
     end
 
-    alias min first
-    alias max last
+    alias_method :min, :first
+    alias_method :max, :last
 
     protected
 

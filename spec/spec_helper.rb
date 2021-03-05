@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require 'simplecov'
-require 'coveralls'
+require "simplecov"
+require "coveralls"
 SimpleCov.start do
-  add_filter 'spec'
+  add_filter "spec"
 end
 Coveralls.wear!
 
-require 'faker'
-require_relative '../lib/rndb'
+require "faker"
+require_relative "../lib/rndb"
 
 class Ball < RnDB::Table
   column :colour, {
