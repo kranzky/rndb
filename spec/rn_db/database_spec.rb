@@ -29,8 +29,9 @@ describe RnDB::Database do
 
   it "allows columns to be mutated" do
     ball = Ball.sample.first
+    ball.to_h
     ball.colour = "purple"
-    expect(Ball[ball.id].colour).to eq("purple")
+    expect(ball.colour).to eq("purple")
   end
 
   it "can load mutated state" do

@@ -141,6 +141,7 @@ module RnDB
           _generate_column(attribute)
         end
         define_method("#{attribute}=".to_sym) do |value|
+          @_attributes&.delete(attribute)
           self.class.send(:_set_state, id, attribute, value)
         end
       end
