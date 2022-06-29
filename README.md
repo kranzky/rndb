@@ -6,7 +6,7 @@
 
 # RnDB
 
-RnDB is a procedurally-generated fake database. Read the [blog post](https://blog.kranzky.com/the-case-of-the-fake-database-7bde487213a3?source=friends_link&sk=56d6351a5cce0c6ae5c6843f4f323997) for details.
+RnDB is a procedurally-generated fake database. Read the [blog post](https://medium.com/the-magic-pantry/the-case-of-the-fake-database-7bde487213a3) for details.
 
 ## Video Overview
 
